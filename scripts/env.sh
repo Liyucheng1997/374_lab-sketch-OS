@@ -19,6 +19,10 @@ MUSL_GIT="https://git.musl-libc.org/git/musl"
 MUSL_SRC="$WORK/src/musl"
 MUSL_PREFIX="$WORK/toolchain/musl-i386"
 KHDR="$WORK/toolchain/kheaders-i386"
+# 访问不到 git.musl-libc.org 时的后备：Ubuntu 软件源里的 musl 上游源码包
+MUSL_FALLBACK_VERSION="1.2.4"
+MUSL_FALLBACK_URL="http://archive.ubuntu.com/ubuntu/pool/universe/m/musl/musl_${MUSL_FALLBACK_VERSION}.orig.tar.gz"
+MUSL_FALLBACK_SHA256="7a35eae33d5372a7c0da1188de798726f68825513b7ae3ebe97aaaa52114f039"
 
 V86_GIT="https://github.com/copy/v86.git"
 V86_SRC="$WORK/src/v86"
