@@ -274,16 +274,20 @@ static int expand_param(wpart *pt, xbuf *x)
         break;
     }
     case PO_DEFAULT:
-        if (pt->colon ? null : !set)
+        if (pt->colon ? null : !set) {
+            /* 在引号里："${x:-}" 的默认值是空的，展开后什么字符也没有，也要留下一个空参数 */
+            if (q)
+                xb_put(x, 0, F_QMARK);
             rc = expand_word_x(pt->arg, x, XM_OPERAND);
-        else
+        } else {
             put_value(x, sb_str(&val), val.len, q);
+        }
         break;
     case PO_ALT:
+        if (q)
+            xb_put(x, 0, F_QMARK);    /* 同上："${x:+}" 和 x 为空时的 "${x:+w}" 都是一个空参数 */
         if (pt->colon ? !null : set)
             rc = expand_word_x(pt->arg, x, XM_OPERAND);
-        else if (q)
-            xb_put(x, 0, F_QMARK);
         break;
     case PO_ASSIGN:
         if (pt->colon ? null : !set) {
