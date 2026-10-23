@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="SketchOS：原版 Linux 6.12 内核 + 自己从零写的用户态，界面全部是手绘风格的教学操作系统，在浏览器里的 v86 x86 模拟器中运行。">
+<title>SketchOS · 手绘操作系统</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/sketch.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="logo" id="logo" aria-hidden="true"></div>
+  <div class="masthead-text">
+    <h1><span class="brand">SketchOS</span><span class="dot"> · </span><span class="hl" data-sketch="marker" data-seed="title-marker">手绘</span>操作系统</h1>
+    <p class="tagline">原版 Linux 6.12 内核 + 我们自己从零写的用户态。整台电脑都在你的浏览器里运行。</p>
+  </div>
+</header>
+
+<main>
+  <section class="machine" aria-label="虚拟机">
+    <div class="toolbar" role="toolbar" aria-label="虚拟机控制">
+      <button type="button" class="sk-btn" id="btn-power" data-sketch="button" data-accent="var(--green)" data-icon="power"><span class="label">开机</span></button>
+      <button type="button" class="sk-btn" id="btn-fullscreen" data-sketch="button" data-accent="var(--blue)" data-icon="fullscreen"><span class="label">全屏</span></button>
+      <button type="button" class="sk-btn" id="btn-shot" data-sketch="button" data-accent="var(--orange)" data-icon="camera"><span class="label">截图</span></button>
+      <button type="button" class="sk-btn" id="btn-serial" data-sketch="button" data-accent="var(--purple)" data-icon="terminal" aria-pressed="false" aria-controls="serial-panel"><span class="label">串口控制台</span></button>
+      <button type="button" class="sk-btn" id="btn-scale" data-sketch="button" data-accent="var(--teal)" data-icon="scale"><span class="label">缩放：适应</span></button>
+      <button type="button" class="sk-btn touch-only" id="btn-osk" data-sketch="button" data-accent="var(--pink)" data-icon="keyboard"><span class="label">屏幕键盘</span></button>
+    </div>
+
+    <div class="status-row">
+      <p class="status" role="status" aria-live="polite"><span class="lamp" id="lamp" data-state="idle"></span><span id="status-text">准备中……</span></p>
+      <ol class="boot-steps" id="boot-steps" aria-label="开机进度">
+        <li data-step="download">下载</li>
+        <li data-step="bios">BIOS</li>
+        <li data-step="kernel">内核</li>
+        <li data-step="sinit">sinit</li>
+        <li data-step="desktop">桌面</li>
+      </ol>
+    </div>
+    <div class="progress" id="progress" hidden>
+      <svg class="progress-svg" id="progress-svg" aria-hidden="true"></svg>
+      <span class="progress-label" id="progress-label"></span>
+    </div>
+
+    <div class="notebook" id="notebook" data-sketch="box" data-seed="notebook">
+      <div class="rings" id="rings" aria-hidden="true"></div>
+      <span class="tape tape-left" aria-hidden="true"></span>
+      <span class="tape tape-right" aria-hidden="true"></span>
+
+      <div class="stage" id="stage">
+        <div class="viewport empty" id="viewport">
+          <div class="screen-frame" id="screen-frame" data-sketch="box" data-seed="screen-frame" data-fill="none" data-shadow="0">
+            <div class="sizer" id="sizer">
+              <!-- v86 的屏幕结构：第一个 div 显示文本模式，第一个 canvas 显示图形模式 -->
+              <div id="screen_container" tabindex="0" aria-label="SketchOS 的屏幕。点击后键盘输入会发送给虚拟机。">
+                <div class="text-screen" style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
+                <canvas style="display: none"></canvas>
+              </div>
+            </div>
+            <div class="flash" id="flash" aria-hidden="true"></div>
+          </div>
+          <div class="overlay" id="overlay">
+            <div class="card overlay-card" id="overlay-card" data-sketch="box" data-seed="overlay-card">
+              <div class="overlay-body" id="overlay-body" role="alert" aria-live="assertive"></div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-bar">
+          <span class="kbd-state" id="kbd-state" data-captured="false">
+            <span class="kbd-icon" id="kbd-icon" aria-hidden="true"></span><span id="kbd-text">点一下屏幕，键盘就交给 SketchOS</span>
+          </span>
+          <button type="button" class="sk-btn small fs-only" id="btn-exit-fs" data-sketch="button" data-accent="var(--red)" data-icon="exit"><span class="label">退出全屏</span></button>
+        </div>
+      </div>
+      <p class="caption" id="caption">一台用 WebAssembly 模拟出来的 32 位 x86 电脑：256 MB 内存 · Bochs VBE 显卡 · PS/2 键盘鼠标 · 16550 串口</p>
+      <textarea class="phone_keyboard" id="phone-keyboard" aria-label="屏幕键盘输入" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    </div>
+
+    <section class="card serial-panel" id="serial-panel" hidden aria-label="串口控制台" data-sketch="box" data-seed="serial-panel">
+      <div class="serial-head">
+        <h2>串口控制台 <small>ttyS0 · 115200</small></h2>
+        <div class="serial-actions">
+          <button type="button" class="sk-btn small" id="serial-ctrlc" data-sketch="button" data-accent="var(--red)" title="发送 Ctrl+C（中断当前命令）"><span class="label">Ctrl+C</span></button>
+          <button type="button" class="sk-btn small" id="serial-clear" data-sketch="button" data-accent="var(--yellow)" title="清空显示（不影响虚拟机）"><span class="label">清屏</span></button>
+        </div>
+      </div>
+      <div class="serial-log-wrap" data-sketch="box" data-seed="serial-log">
+        <div class="serial-log" id="serial-log" tabindex="0" aria-label="串口输出"></div>
+      </div>
+      <form class="serial-form" id="serial-form" autocomplete="off">
+        <label class="sr-only" for="serial-input">发送到串口的命令</label>
+        <span class="prompt" aria-hidden="true">&gt;</span>
+        <span class="input-line" data-sketch="underline" data-seed="serial-input-line">
+          <input type="text" id="serial-input" enterkeyhint="send" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="输入命令，回车发送到串口（↑↓ 翻历史）">
+        </span>
+        <button type="submit" class="sk-btn small" id="serial-send" data-sketch="button" data-accent="var(--green)"><span class="label">发送</span></button>
+      </form>
+      <p class="hint">这里打的字只送给串口 ttyS0，不会进入图形界面。串口上同样运行着一个 sksh。</p>
+    </section>
+  </section>
+
+  <section class="card notes" data-sketch="box" data-seed="notes-what">
+    <h2><span data-sketch="underline" data-seed="h-what">这是什么？</span></h2>
+    <p><b>SketchOS</b> 是一个用来学习操作系统架构的教学系统。它和 Ubuntu 一样建立在 Linux 内核之上——而且就是<b>原版的 Linux 6.12</b>，一行没改；
+      不同的是，内核之上的一切都是我们自己从零写的：1 号进程 <code>sinit</code>、命令行 <code>sksh</code>、工具箱 <code>skbox</code>、
+      显示服务器 <code>sketchd</code>，还有终端、文件、记事本、画板这些应用。所有界面都是<span class="hl-inline">手绘风格</span>：铅笔线条、蜡笔排线、方格纸。</p>
+    <figure class="diagram">
+      <div id="arch-diagram" class="arch"></div>
+      <figcaption>分层结构：每一层只和相邻的一层打交道，箭头上写着它们之间“说话”的方式。</figcaption>
+    </figure>
+  </section>
+
+  <section class="card notes" data-sketch="box" data-seed="notes-boot">
+    <h2><span data-sketch="underline" data-seed="h-boot">点下「开机」之后发生了什么</span></h2>
+    <ol class="steps">
+      <li><b>下载</b>：浏览器下载 v86 模拟器（<code>v86.wasm</code>）、两个 BIOS、内核 <code>bzImage</code> 和根文件系统 <code>initramfs</code>。</li>
+      <li><b>BIOS 自检</b>：v86 模拟出一台完整的 PC——CPU、内存、显卡、键盘鼠标、串口、时钟芯片。SeaBIOS 先运行，做硬件初始化。</li>
+      <li><b>内核启动</b>：Linux 解压自己，初始化内存管理和进程调度，加载显卡、键盘、串口驱动，再把 initramfs 解压成内存里的根文件系统。</li>
+      <li><b>sinit</b>：内核运行的第一个程序 <code>/init</code>（1 号进程）。它挂载 <code>/proc</code>、<code>/sys</code>、<code>/dev</code>，按 <code>/etc/sketch/services.conf</code> 启动各项服务，并负责回收“僵尸进程”。</li>
+      <li><b>桌面</b>：<code>sketchd</code> 通过 DRM 接口拿到显存，画出手绘风格的桌面；应用通过 Unix 域套接字连上它，把画好的窗口放进共享内存交给它合成。</li>
+    </ol>
+    <p>画面是怎么出现在网页上的？sketchd 把像素写进<b>显存</b>，v86 每一帧把这块显存画到页面的 <code>&lt;canvas&gt;</code> 上。
+      鼠标则是浏览器把指针位置写进一个“VMware 后门端口”，系统里的驱动在每次鼠标中断时去读它——所以不用锁定鼠标指针，系统里的光标也能和你的鼠标严丝合缝。</p>
+  </section>
+
+  <section class="card notes" data-sketch="box" data-seed="notes-tips">
+    <h2><span data-sketch="underline" data-seed="h-tips">使用小提示</span></h2>
+    <ul class="tips">
+      <li><b>点一下屏幕</b>，键盘输入才会发给 SketchOS；点屏幕外面，或者同时按下再松开 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>，就把键盘还给网页。</li>
+      <li><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> 打开终端。</li>
+      <li><b>串口控制台</b>就是这台电脑的第一个串口 ttyS0，上面也跑着 sksh，适合敲命令、看启动日志；在 <code>sinit</code> 出问题、图形界面起不来时尤其有用。</li>
+      <li><b>全屏</b>时，Chrome / Edge 会把 <kbd>Esc</kbd>、<kbd>Ctrl</kbd>+<kbd>W</kbd> 这些快捷键也交给 SketchOS；长按 <kbd>Esc</kbd> 退出全屏。</li>
+      <li><b>截图</b>保存的是虚拟显卡里的原始画面（PNG）。</li>
+      <li>浏览器里的模拟比真机慢 10～50 倍，开机要等一会儿。系统完全运行在内存里：刷新页面或者重启，所有改动都会消失。</li>
+      <li>手机 / 平板上：点按 = 鼠标左键，按住拖动 = 拖动，长按 = 右键；「屏幕键盘」按钮可以弹出输入法。</li>
+      <li>想看看纯文字界面？在网址后面加上 <code>?append=sketch.nogui</code>。</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <p>SketchOS 教学操作系统 · 内核：Linux 6.12（GPL-2.0）· 模拟器：<a href="lib/v86-LICENSE.txt">v86</a>（BSD-2-Clause）· BIOS：<a href="lib/seabios-COPYING.LESSER.txt">SeaBIOS</a>（LGPL-3.0）</p>
+  <p id="build-info" class="build-info"></p>
+</footer>
+
+<script src="js/rough.js"></script>
+<script src="js/terminal.js"></script>
+<script src="js/diagram.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

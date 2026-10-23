@@ -1,0 +1,11 @@
+# ~/.skshrc — 你自己的 sksh 配置（登录 shell 在 /etc/profile 之后执行它）
+#
+# 文件名以 . 开头，所以 ls 默认看不到它，要用 ls -a。
+# 这里适合放个人习惯：自己的别名、自己的变量。改完运行  . ~/.skshrc  立即生效。
+
+# 例子：几个顺手的别名
+alias home='cd ~'
+alias ex='cd ~/示例 && ls'
+
+# 例子：自己的变量（export 之后，从这个 shell 启动的程序也能看到它）
+export SKETCH_GREETING='今天也要开心地画画'

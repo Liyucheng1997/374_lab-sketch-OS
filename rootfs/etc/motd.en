@@ -1,0 +1,17 @@
+
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Welcome to SketchOS - an operating system drawn in pencil!
+
+   The kernel is a real Linux kernel; everything above it - sinit
+   (PID 1), this shell (sksh), the skbox tools, the sketchd display
+   server and the hand-drawn apps - was written from scratch.
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Note: this text console uses the kernel's built-in font, which has
+   no Chinese characters (they show up as little boxes). Chinese text
+   works on the serial terminal and in the desktop's terminal (skterm).
+
+   Try:  ps      svc      dmesg      cat /proc/cpuinfo      help
+   Read: the welcome guide in /root (open it on the serial terminal or in skterm)
+   Quit: poweroff  or  reboot
+

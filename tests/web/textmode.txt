@@ -1,0 +1,8 @@
+# tests/web/textmode.txt — 用 nomodeset 启动（内核不加载 bochs-drm，屏幕停在 VGA 文本模式），
+# 检查 harness 能读出 VGA 文本屏幕并用显卡字库画出截图。由 run_tests.sh 运行。
+wait webtest: shell ready 90
+wait_text Type here: every line is reported 20
+run tty1 TEXT MODE OK 42
+wait_text TEXT MODE OK 42 10
+text
+shot @OUT@/textmode.png

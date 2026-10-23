@@ -1,0 +1,33 @@
+# /etc/profile — 登录 shell 启动时执行的“系统级”配置
+#
+# 谁会执行它？sinit 按服务表启动的串口 shell、控制台 shell 都带 -l 参数（“登录 shell”）。
+# sksh 在显示第一个提示符之前，先执行这个文件，再执行家目录里的 ~/.skshrc。
+# 这里放所有用户共享的设置；个人的小习惯请写到 ~/.skshrc 里。
+#
+# 改完以后不用重启：在 shell 里运行  . /etc/profile  就能立刻生效。
+
+# ---- 环境变量 ----
+# sinit 启动服务时已经设置好了这些（见 docs/开发规范.md 4.5），写在这里是为了一目了然，也方便修改。
+# export 的意思是“让以后启动的子进程也继承这个变量”。
+export PATH=/bin:/sbin
+export HOME=/root
+export LANG=C.UTF-8
+
+# ---- 常用别名 ----
+# 别名就是“命令的简写”：输入 ll，shell 会把它替换成 ls -l 再执行。
+alias ll='ls -l'
+alias la='ls -la'
+alias l='ls'
+alias ..='cd ..'
+
+# ---- 欢迎信息 ----
+# 图形终端（skterm）里打开的 shell 会带着 SKETCH_SOCKET 变量，窗口里就不重复显示长长的欢迎词了。
+# 屏幕上的文字终端（/dev/tty1 这类“虚拟终端”）用的是内核自带的点阵字体，只有几百个西文字形，
+# 显示不了汉字（会变成小方块），所以在那里显示英文版；串口终端能正常显示中文。
+# /proc/self/fd/0 是“我的标准输入”，readlink 读出它连着哪个终端设备。
+if [ -z "$SKETCH_SOCKET" ]; then
+    case "$(readlink /proc/self/fd/0)" in
+        /dev/tty[0-9]*) cat /etc/motd.en ;;
+        *)              cat /etc/motd ;;
+    esac
+fi

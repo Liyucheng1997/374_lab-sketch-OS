@@ -1,0 +1,83 @@
+# tests/web/fixture.txt — 用最小测试系统（tests/web/guest/webtest.c 做 /init）检查网页版依赖的虚拟硬件
+# 由 tests/web/run_tests.sh 运行：@OUT@ 会被替换成输出目录。也可以手工跑：
+#   node tools/v86_harness.mjs --initrd fixture.cpio.gz --script fixture.txt
+# 串口输出里 webtest: 开头的行是测试系统的报告（格式见 webtest.c 开头的说明）。
+
+wait webtest: shell ready 90
+wait webtest: tty1 ready 30
+wait webtest: input ready mice=[1-9] vmmouse=on 30
+
+# ---- 串口：命令执行 + 中文（UTF-8）双向传输 ----
+run echo 你好，v86 串口
+wait ^你好，v86 串口 5
+run uname
+wait Linux sketchos \S+ .*i686 5
+run fb
+wait fb0 1024x768 5
+shot @OUT@/fixture-1.png
+
+# ---- 键盘：PS/2 扫描码 → atkbd 驱动 → 虚拟终端 tty1 ----
+type hello web
+key ret
+wait webtest: tty1 line: hello web\r?\n 15
+type Shift+Sym !@#$%^&*()_+{}|:"<>?~
+key ret
+wait webtest: tty1 line: Shift\+Sym !@#\$%\^&\*\(\)_\+\{\}\|:"<3c>>\?~ 15
+key ctrl-c
+key ret
+wait webtest: tty1 line: <03>\r?\n 15
+key backspace
+type ab
+key backspace
+type c
+key ret
+wait webtest: tty1 line: ac\r?\n 15
+
+# ---- 鼠标：VMware 后门绝对坐标（每个 PS/2 中断取一次），坐标必须落在准确的像素上 ----
+move 100 100
+wait webtest: vmmouse x=100 y=100 raw= 10
+move 1023 767
+wait webtest: vmmouse x=1023 y=767 raw=65535,65535 10
+move 0 0
+wait webtest: vmmouse x=0 y=0 raw=0,0 10
+move 333 555
+wait webtest: vmmouse x=333 y=555 raw= 10
+click 512 384
+wait webtest: vmmouse x=512 y=384 raw=\d+,\d+ buttons=L-- 10
+wait webtest: mouse button left down 10
+wait webtest: mouse button left up 10
+click 300 200 right
+wait webtest: vmmouse x=300 y=200 raw=\d+,\d+ buttons=--R 10
+wait webtest: mouse button right down 10
+click 301 201 middle
+wait webtest: vmmouse x=301 y=201 raw=\d+,\d+ buttons=-M- 10
+dclick 640 480
+wait webtest: vmmouse x=640 y=480 raw=\d+,\d+ buttons=L-- 10
+drag 10 20 400 300
+wait webtest: vmmouse x=400 y=300 raw=\d+,\d+ buttons=L-- 10
+wheel 400 300 2
+wait webtest: mouse wheel 1 10
+wheel 400 300 -1
+wait webtest: mouse wheel -1 10
+
+# ---- 显示：在 tty1 上写字，截图必须跟着变 ----
+run tty1 SCREEN CHANGE TEST 12345
+sleep 0.5
+shot @OUT@/fixture-2.png
+expect_shot_differs @OUT@/fixture-1.png @OUT@/fixture-2.png
+
+# ---- 重启：v86 不能热重启 -kernel 方式启动的系统，harness 会冷启动一台新的模拟器 ----
+mark
+serial reboot\n
+wait reboot: Restarting system 20
+wait \[v86_harness\] 客户机请求重启 10
+wait webtest: shell ready 90
+wait webtest: input ready mice=[1-9] vmmouse=on 30
+move 222 111
+wait webtest: vmmouse x=222 y=111 raw= 10
+run echo after-reboot
+
+# ---- 关机：没有 ACPI 时内核会停机并打印下面这句（网页版据此显示“已关机”） ----
+mark
+serial poweroff\n
+wait reboot: (Power down|System halted|Power off not available) 20

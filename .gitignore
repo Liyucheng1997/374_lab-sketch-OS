@@ -1,0 +1,8 @@
+# 构建产物
+/out/
+/web/lib/
+/web/images/
+*.o
+*.a
+*.ppm
+__pycache__/
