@@ -37,7 +37,7 @@ skbox_src     := $(wildcard skbox/*.c)
 libsketch_src := $(wildcard gui/libsketch/*.c)
 sketchd_src   := $(wildcard gui/sketchd/*.c)
 app_dirs      := $(patsubst gui/apps/%/,%,$(sort $(dir $(wildcard gui/apps/*/*.c))))
-headers       := $(wildcard common/*.h gui/include/sketch/*.h gui/libsketch/*.h gui/sketchd/*.h shell/*.h skbox/*.h init/*.h)
+headers       := $(wildcard common/*.h gui/include/sketch/*.h gui/libsketch/*.h gui/sketchd/*.h shell/*.h skbox/*.h init/*.h gui/apps/*/*.h)
 
 obj = $(patsubst %.c,$(OBJ)/%.o,$(1))
 

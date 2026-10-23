@@ -1366,9 +1366,12 @@ static void dispatch_one(sk_app *app, msg_node *m)
         e.win = w;
         w->busy++;
         int handled = w->handler ? w->handler(w, &e, w->user) : 0;
-        w->busy--;
+        /* 默认动作：关掉窗口。要在 busy-- 之前销毁：这时窗口还算“忙”，会先进墓地，
+         * 由下面的 reap 统一释放；先 busy-- 的话 sk_window_destroy 会立刻 free，
+         * reap 再读 w->dead 就是访问已释放的内存 */
         if (!handled)
-            sk_window_destroy(w);      /* 默认动作：关掉窗口 */
+            sk_window_destroy(w);
+        w->busy--;
         goto reap;
     }
     case SK_EV_CLIPBOARD:
