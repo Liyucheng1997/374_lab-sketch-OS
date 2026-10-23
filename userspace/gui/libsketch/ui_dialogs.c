@@ -521,7 +521,7 @@ static int fd_load(fd_ctx *fc, const char *path)
     DIR *dp = opendir(dir);
     if (!dp) {
         char msg[1200];
-        snprintf(msg, sizeof(msg), "无法打开文件夹 %.900s：%s", dir, strerror(errno));
+        snprintf(msg, sizeof(msg), "无法打开文件夹 %.900s：%s", dir, sk_strerror(errno));
         fd_status(fc, msg);
         return -1;
     }
