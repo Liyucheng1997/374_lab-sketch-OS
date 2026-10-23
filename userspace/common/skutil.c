@@ -516,6 +516,16 @@ int sk_read_proc(pid_t pid, sk_procinfo *p)
     p->is_kernel_thread = (flags & PF_KTHREAD_FLAG) != 0;
     free(s);
 
+    /* 常驻内存以 /proc/<pid>/statm 的第 2 个字段（页数）为准：新内核把每个进程的内存计数
+     * 拆成了“每个 CPU 一份”，stat 里的 rss 只是不加锁读出的近似值，statm/status 才是汇总后的
+     * 准确值（procps 的 ps 也读 statm）。读不到时保留上面从 stat 得到的值。 */
+    snprintf(path, sizeof path, "/proc/%d/statm", (int)pid);
+    char line[128];
+    unsigned long long size_pages, resident_pages;
+    if (sk_read_line(path, line, sizeof line) == 0 &&
+        sscanf(line, "%llu %llu", &size_pages, &resident_pages) == 2)
+        p->rss_kb = resident_pages * (uint64_t)(sysconf(_SC_PAGESIZE) / 1024);
+
     snprintf(path, sizeof path, "/proc/%d/cmdline", (int)pid);
     size_t len = 0;
     char *cmd = sk_read_file(path, &len);
