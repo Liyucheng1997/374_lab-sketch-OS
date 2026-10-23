@@ -11,14 +11,18 @@
 #     测试（tests/skbox、shell、ui、widgets、apps），但编译内核、打包 initramfs、
 #     QEMU/v86 测试要等能访问 cdn.kernel.org 之后再做。
 #   - 拉不到 musl 的 git 仓库：从 Ubuntu 软件源下载 musl 上游发布的源码包（校验 sha256）。
+#
+# 环境变量 SKETCHOS_NO_QEMU=1：不装 QEMU（连同它依赖的几十个图形、固件包）。只构建、不在本机
+# 运行虚拟机时用，例如 GitHub Actions 构建网页版。
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 
 mkdir -p "$WORK/src" "$WORK/toolchain/bin"
 
+pkgs=(build-essential gcc-multilib flex bison bc libelf-dev libssl-dev cpio xz-utils python3 python3-pil git curl)
+[ "${SKETCHOS_NO_QEMU:-0}" = 1 ] || pkgs+=(qemu-system-x86)
 need_pkgs=()
-for p in build-essential gcc-multilib flex bison bc libelf-dev libssl-dev cpio \
-         qemu-system-x86 xz-utils python3 python3-pil git curl; do
+for p in "${pkgs[@]}"; do
     dpkg -s "$p" >/dev/null 2>&1 || need_pkgs+=("$p")
 done
 if [ ${#need_pkgs[@]} -gt 0 ]; then
