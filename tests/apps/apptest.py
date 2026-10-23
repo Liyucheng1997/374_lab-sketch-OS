@@ -61,6 +61,7 @@ class App:
         e.update({"SKETCH_FONT_DIR": FONT_DIR, "LANG": "C.UTF-8", "TZ": "CST-8"})
         if env:
             e.update(env)
+        self.d = d
         self.p = d.spawn(argv, env=e, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.lines = []
         self.q = queue.Queue()
@@ -101,11 +102,20 @@ class App:
         return self.p.poll() is None
 
     def stop(self):
+        """结束程序（SIGTERM，不行再 SIGKILL），并等模拟服务器删掉它的窗口"""
         if self.p.poll() is None:
             self.p.send_signal(signal.SIGTERM)
             if self.wait(2) is None:
                 self.p.kill()
                 self.p.wait()
+        # wait_window 发现有进程以非 0 退出码结束就会报错：被我们主动结束的进程不算
+        if self.p in self.d.procs:
+            self.d.procs.remove(self.p)
+        # 服务器发现连接断开后才删窗口；不等的话，下一个 wait_window(title=...) 可能拿到旧窗口
+        deadline = time.time() + 3
+        while time.time() < deadline and \
+                any(w.client.pid == self.p.pid for w in list(self.d.windows.values())):
+            time.sleep(0.02)
 
 
 def settle(d, win, quiet=0.3, timeout=10):
