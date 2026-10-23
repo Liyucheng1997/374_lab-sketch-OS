@@ -11,6 +11,8 @@ tests/apps/test_sknote.py — 记事本 sknote 的自动化测试（不需要 QE
     sknote: saved 96 /x/y.txt
     sknote: error 无法打开……
     sknote: ask 1
+    sknote: found 12 6 wrapped
+    sknote: notfound
 对话框是独立的窗口：d.wait_window(count=2) 等第二个窗口出现。
 """
 import os
@@ -24,8 +26,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from apptest import check, App, settle, shot, run_tests, md  # noqa: E402
 
 # 工具栏布局（与 sknote/main.c 的 layout() 一致）
-CHK_WRAP = (390 + 54, 24)
-CHK_NUMBERS = (390 + 114 + 36, 24)
+TOOLS_END = 10 + 82 * 4 + 100 + 4 * 4         # 与 sknote/main.c 的 TOOLS_END 一致
+CHK_WRAP = (TOOLS_END + 22 + 54, 24)
+CHK_NUMBERS = (TOOLS_END + 22 + 114 + 36, 24)
+FIND_BUTTON = (10 + (82 + 4) * 3 + 100 + 4 + 41, 24)
 
 
 # ---------------------------------------------------------------- 小工具
@@ -433,6 +437,67 @@ def test_damage(d, args):
     app.stop()
 
 
+def test_find(d, args):
+    home = new_home()
+    path = os.path.join(home, "水果.txt")
+    text = "苹果 香蕉 苹果\n第二行：apple 苹果\n"
+    write(path, text)
+    app, win = start(d, args, home, path)
+    raw = text.encode()
+    hits = [m.start() for m in re.finditer("苹果".encode(), raw)]      # 字节偏移
+    # Ctrl+F：输入框对话框，输入要找的文字，回车
+    since = len(app.lines)
+    d.key(win, "ctrl+f")
+    dlg = d.wait_window(timeout=5, count=2)
+    settle(d, dlg)
+    d.type_text(dlg, "苹果")
+    d.key(dlg, "enter")
+    m = wait_line(app, since, r"^sknote: found (\d+) (\d+)( wrapped)?$")
+    check(m and int(m.group(1)) == hits[0] and int(m.group(2)) == 6 and not m.group(3),
+          "Ctrl+F 找到第一个“苹果”（字节偏移 %d）：%s" % (hits[0], m and m.group(0)))
+    st = wait_state(app, since, lambda s: s["line"] == 1 and s["col"] == 3)
+    check(st is not None, "光标停在选中文字的末尾（第 1 行第 3 列），状态栏跟着更新")
+    settle(d, win)
+    shot(d, win, args, "sknote-find")
+    # F3：接着往后找；找到最后一个之后从头找
+    for i, want in enumerate(hits[1:] + [hits[0]]):
+        since = len(app.lines)
+        d.key(win, "f3")
+        m = wait_line(app, since, r"^sknote: found (\d+) (\d+)( wrapped)?$")
+        wrapped = i == len(hits) - 1
+        check(m and int(m.group(1)) == want and bool(m.group(3)) == wrapped,
+              "F3 第 %d 次找到偏移 %d%s：%s" % (i + 1, want, "（从头找）" if wrapped else "", m and m.group(0)))
+    # 找到后直接打字：替换选中的文字
+    d.type_text(win, "梨")
+    d.key(win, "ctrl+s")                       # 事件按顺序处理：保存一定在打字之后
+    check(wait_line(app, 0, r"^sknote: saved ") is not None, "保存")
+    check(read(path).decode() == "梨 香蕉 苹果\n第二行：apple 苹果\n", "打字替换了选中的“苹果”：%r" % read(path).decode())
+    # 工具栏“查找”按钮：找不到时提示
+    since = len(app.lines)
+    d.click(win, *FIND_BUTTON)
+    dlg = d.wait_window(timeout=5, count=2)
+    settle(d, dlg)
+    d.key(dlg, "ctrl+a")
+    d.type_text(dlg, "西瓜")
+    d.key(dlg, "enter")
+    check(wait_line(app, since, r"^sknote: notfound$") is not None, "工具栏“查找”：找不到“西瓜”")
+    check(wait_gone(d, dlg), "输入框关掉了")
+    msg = d.wait_window(timeout=5, title="查找")    # 输入框和提示框的标题都是“查找”：等前者消失再找
+    settle(d, msg)
+    shot(d, msg, args, "sknote-find-notfound")
+    d.key(msg, "enter")
+    check(wait_gone(d, msg), "提示框按回车关掉")
+    # Esc 取消查找：什么也不做，也不弹提示
+    since = len(app.lines)
+    d.key(win, "ctrl+f")
+    dlg = d.wait_window(timeout=5, count=2)
+    settle(d, dlg)
+    d.key(dlg, "esc")
+    time.sleep(0.3)
+    check(not wait_line(app, since, r"^sknote: (found|notfound)", timeout=0.3), "Esc 取消查找")
+    app.stop()
+
+
 def test_toggles_and_shortcuts(d, args):
     home = new_home()
     diary = os.path.join(home, "文档", "日记.txt")
@@ -483,7 +548,7 @@ def test_toggles_and_shortcuts(d, args):
     check(win.title == "日记.txt - 记事本", "标题：%s" % win.title)
 
     # 改变窗口大小：重新布局，路径太长时省略开头
-    d.resize(win, 620, 360)
+    d.resize(win, 690, 360)                    # 最小宽度 680：工具栏的按钮和开关正好放得下
     settle(d, win)
     shot(d, win, args, "sknote-small")
     app.stop()
@@ -498,5 +563,6 @@ if __name__ == "__main__":
         ("saveas", test_save_as),
         ("errors", test_error_args),
         ("damage", test_damage),
+        ("find", test_find),
         ("toggles", test_toggles_and_shortcuts),
     ])

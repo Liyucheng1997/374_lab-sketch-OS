@@ -40,12 +40,13 @@
  *     （文件以 \n 结尾时，编辑器最后会多出一个空行——那一行就代表这个换行）。
  *   - 保存时保留原文件的权限位；新文件的权限是 0666 去掉 umask 屏蔽的位。
  *   - “已修改”由编辑器的撤销栈判断：撤销回到保存时的样子，标题上的 * 也会消失。
- *   - 查找（Ctrl+F）暂时没有：它需要编辑器提供“把光标移到某处 / 选中一段文字”的接口，
- *     ui.h 里的 sk_textarea 目前还没有。
+ *   - 查找（Ctrl+F）：从光标往后找，找到末尾再从头找；找到就选中它（sk_textarea_select）。
+ *     F3 查找下一个。区分大小写，按字节比较（UTF-8 里一个汉字的编码不会出现在别的字中间，
+ *     所以直接用 strstr 找中文也不会找到“半个字”）。
  *
  * 命令行：sknote [文件路径]      （/etc/sketch/apps.conf 里写的是 /bin/sknote %f）
  *   文件存在 → 打开它；不存在 → 空文档，第一次保存时创建它；没有参数 → “未命名”。
- * 快捷键：Ctrl+N 新建   Ctrl+O 打开   Ctrl+S 保存   Ctrl+Shift+S 另存为
+ * 快捷键：Ctrl+N 新建   Ctrl+O 打开   Ctrl+S 保存   Ctrl+Shift+S 另存为   Ctrl+F 查找   F3 查找下一个
  *
  * 调试（自动化测试 tests/apps/test_sknote.py 用）：设置环境变量 SKNOTE_DEBUG=1 后，
  * 程序会向标准输出打印：
@@ -56,6 +57,8 @@
  *   sknote: saved <字节数> <路径>      —— 保存成功后
  *   sknote: error <消息>              —— 弹出错误框之前
  *   sknote: ask <按钮序号>             —— “要保存吗？”对话框的结果（0 保存 1 不保存 2/-1 取消）
+ *   sknote: found <字节偏移> <长度> [wrapped]  —— 查找到了（wrapped = 是从头重新找到的）
+ *   sknote: notfound                  —— 没找到，弹出提示之前
  */
 #define _GNU_SOURCE
 #include <sketch/client.h>
@@ -83,7 +86,7 @@
 #define BG_SEED         0x50A7Eu        /* 窗口纸张纹理的种子（固定：局部重画不出“补丁”） */
 #define NAME_MAX_BYTES  44              /* 标题里文件名最多占的字节（标题总共只有 64 字节） */
 
-enum { TOOL_NEW, TOOL_OPEN, TOOL_SAVE, TOOL_SAVE_AS, NTOOLS };
+enum { TOOL_NEW, TOOL_OPEN, TOOL_SAVE, TOOL_SAVE_AS, TOOL_FIND, NTOOLS };
 
 /* 程序的全部状态：回调函数通过 user 指针拿到它 */
 typedef struct {
@@ -95,6 +98,7 @@ typedef struct {
     sk_widget *editor;
     sk_widget *lbl_pos, *lbl_count, *lbl_path;
     char      *path;            /* 当前文件的绝对路径；NULL = 未命名 */
+    char      *find_text;       /* 上一次查找的文字（F3 接着找它）；NULL = 还没找过 */
     int        crlf;            /* 文件原来用 Windows 的 \r\n 换行，保存时写回 \r\n */
     int        count_timer;     /* 字数统计的延迟定时器 id，0 = 没有在等 */
     int        busy;            /* 正在显示对话框（嵌套事件循环里），见 on_event 的 CLOSE */
@@ -664,6 +668,53 @@ static void cmd_open(note *n)
     free(p);
 }
 
+/* 查找：从选区末尾（没有选区就是光标）往后找，到了末尾再从头找一遍；找到就选中。
+ * ask=1（Ctrl+F、工具栏按钮）先问要找什么；ask=0（F3）接着找上一次的文字 */
+static void cmd_find(note *n, int ask)
+{
+    if (ask || !n->find_text) {
+        n->busy++;
+        char *q = sk_dialog_input(n->app, "查找", "要查找的文字：", n->find_text ? n->find_text : "");
+        n->busy--;
+        if (!q || !*q) {
+            free(q);
+            return;
+        }
+        free(n->find_text);
+        n->find_text = q;
+    }
+    char *text = sk_textarea_get_text(n->editor);
+    if (!text) {
+        show_error(n, "内存不足，无法查找。");
+        return;
+    }
+    int a, b;
+    sk_textarea_get_selection(n->editor, &a, &b);
+    const char *hit = strstr(text + (a > b ? a : b), n->find_text);
+    int wrapped = 0;
+    if (!hit) {
+        hit = strstr(text, n->find_text);
+        wrapped = hit != NULL;
+    }
+    if (hit) {
+        int off = (int)(hit - text), len = (int)strlen(n->find_text);
+        sk_textarea_select(n->editor, off, off + len);
+        update_pos(n);                 /* 程序设置选区不会回调 on_change，状态栏自己更新 */
+        schedule_count(n);
+        dbg(n, "found %d %d%s", off, len, wrapped ? " wrapped" : "");
+    } else {
+        char name[64], msg[160];
+        copy_ellipsis(name, sizeof name, n->find_text, 40);
+        snprintf(msg, sizeof msg, "找不到“%s”。", name);
+        dbg(n, "notfound");
+        n->busy++;
+        sk_dialog_message(n->app, "查找", msg, "确定");
+        n->busy--;
+    }
+    free(text);
+    sk_ui_focus(n->ui, n->editor);     /* 对话框关掉后接着在编辑器里打字 */
+}
+
 /* ================================================================ 回调 */
 
 static void on_tool(sk_widget *w, void *user)
@@ -674,6 +725,7 @@ static void on_tool(sk_widget *w, void *user)
     case TOOL_OPEN: cmd_open(n); break;
     case TOOL_SAVE: cmd_save(n); break;
     case TOOL_SAVE_AS: cmd_save_as(n); break;
+    case TOOL_FIND: cmd_find(n, 1); break;
     default: break;
     }
 }
@@ -716,8 +768,13 @@ static int on_event(sk_window *win, const sk_event *e, void *user)
                 else
                     cmd_save(n);
                 return 1;
+            case KEY_F: cmd_find(n, 1); return 1;
             default: break;
             }
+        }
+        if (e->key.keycode == KEY_F3 && !(mods & (SK_MOD_CTRL | SK_MOD_ALT | SK_MOD_SUPER))) {
+            cmd_find(n, 0);
+            return 1;
         }
     }
     return 0;
@@ -725,8 +782,8 @@ static int on_event(sk_window *win, const sk_event *e, void *user)
 
 /* ================================================================ 布局与背景 */
 
-static const int tool_w[NTOOLS] = { 82, 82, 82, 100 };
-#define TOOLS_END (PAD + 82 * 3 + 100 + 3 * 4)          /* 工具按钮右边缘的 x */
+static const int tool_w[NTOOLS] = { 82, 82, 82, 100, 82 };
+#define TOOLS_END (PAD + 82 * 4 + 100 + 4 * 4)          /* 工具按钮右边缘的 x */
 
 static void layout(sk_ui *ui, int W, int H, void *user)
 {
@@ -804,7 +861,7 @@ int main(int argc, char **argv)
         sk_app_disconnect(n.app);
         return 1;
     }
-    sk_window_set_min_size(n.win, 600, 300);
+    sk_window_set_min_size(n.win, 680, 300);
     n.ui = sk_ui_new(n.win);
     if (!n.ui) {
         sk_app_disconnect(n.app);
@@ -813,8 +870,8 @@ int main(int argc, char **argv)
 
     /* 控件先随便给个位置，真正的位置由 layout() 统一计算 */
     sk_rect z = sk_rect_make(0, 0, 10, 10);
-    static const int icons[NTOOLS] = { SK_ICON_FILE, SK_ICON_OPEN, SK_ICON_SAVE, SK_ICON_SAVE };
-    static const char *const labels[NTOOLS] = { "新建", "打开", "保存", "另存为" };
+    static const int icons[NTOOLS] = { SK_ICON_FILE, SK_ICON_OPEN, SK_ICON_SAVE, SK_ICON_SAVE, SK_ICON_SEARCH };
+    static const char *const labels[NTOOLS] = { "新建", "打开", "保存", "另存为", "查找" };
     for (int i = 0; i < NTOOLS; i++) {
         n.tools[i] = sk_icon_button_new(n.ui, z, icons[i], labels[i], on_tool, &n);
         if (!n.tools[i])
@@ -853,6 +910,7 @@ int main(int argc, char **argv)
 
     int rc = sk_app_run(n.app);
     free(n.path);
+    free(n.find_text);
     sk_ui_free(n.ui);
     sk_app_disconnect(n.app);
     return rc;
