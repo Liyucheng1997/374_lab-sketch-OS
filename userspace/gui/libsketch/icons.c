@@ -596,6 +596,16 @@ static void ic_refresh(ictx *ic)
     arrow_head(ic, 24 + cosf(b1) * 16, 24 + sinf(b1) * 16, -sinf(b1), cosf(b1), 6.5f, SK_BLUE, 1.5f);
 }
 
+/* 放大镜（查找）：镜片淡蓝排线，粗手柄，左上角一道反光 */
+static void ic_search(ictx *ic)
+{
+    i_line_w(ic, 29, 29, 41, 41, SK_INK, 2.6f);
+    i_circle(ic, 20, 20, 28, SK_INK, SK_BLUE);
+    i_circle(ic, 20, 20, 20, 0, SK_PAPER);
+    if (!ic->small)
+        i_arc(ic, 20, 20, 14, SK_PI * 1.05f, SK_PI * 1.45f, SK_BLUE, 1.2f);
+}
+
 typedef void (*icon_fn)(ictx *);
 static const icon_fn icon_table[SK_ICON_COUNT] = {
     [SK_ICON_TERMINAL] = ic_terminal,     [SK_ICON_FOLDER] = ic_folder,
@@ -615,7 +625,7 @@ static const icon_fn icon_table[SK_ICON_COUNT] = {
     [SK_ICON_KERNEL] = ic_kernel,         [SK_ICON_CHIP] = ic_chip,
     [SK_ICON_MEMORY] = ic_memory,         [SK_ICON_PROCESS] = ic_process,
     [SK_ICON_SKETCH_LOGO] = ic_logo,      [SK_ICON_BOOK] = ic_book,
-    [SK_ICON_REFRESH] = ic_refresh,
+    [SK_ICON_REFRESH] = ic_refresh,       [SK_ICON_SEARCH] = ic_search,
 };
 
 void sk_draw_icon(sk_canvas *c, int icon, int x, int y, int size, uint32_t seed)
@@ -662,7 +672,7 @@ int sk_icon_from_name(const char *name)
         { "line", SK_ICON_LINE }, { "rect", SK_ICON_RECT }, { "circle", SK_ICON_CIRCLE },
         { "fill", SK_ICON_FILL }, { "kernel", SK_ICON_KERNEL }, { "chip", SK_ICON_CHIP },
         { "memory", SK_ICON_MEMORY }, { "process", SK_ICON_PROCESS }, { "logo", SK_ICON_SKETCH_LOGO },
-        { "book", SK_ICON_BOOK }, { "refresh", SK_ICON_REFRESH },
+        { "book", SK_ICON_BOOK }, { "refresh", SK_ICON_REFRESH }, { "search", SK_ICON_SEARCH },
         /* 常见的别名 */
         { "new_folder", SK_ICON_NEW_FOLDER }, { "sketch", SK_ICON_SKETCH_LOGO },
         { "sketchos", SK_ICON_SKETCH_LOGO }, { "document", SK_ICON_TEXT }, { "picture", SK_ICON_IMAGE },
@@ -670,6 +680,7 @@ int sk_icon_from_name(const char *name)
         { "restart", SK_ICON_REBOOT }, { "delete", SK_ICON_TRASH }, { "info", SK_ICON_ABOUT },
         { "rectangle", SK_ICON_RECT }, { "ellipse", SK_ICON_CIRCLE }, { "bucket", SK_ICON_FILL },
         { "files", SK_ICON_FOLDER }, { "help", SK_ICON_BOOK }, { "doc", SK_ICON_BOOK },
+        { "find", SK_ICON_SEARCH },
     };
     if (!name)
         return SK_ICON_PROGRAM;

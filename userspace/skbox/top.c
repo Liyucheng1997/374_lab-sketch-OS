@@ -98,6 +98,22 @@ static void out_flush(void)
 }
 
 /* 输出一行：按终端宽度截断（汉字占 2 列），全屏模式下用 ESC[K 擦掉行尾的旧内容 */
+static int g_lines_out;   /* 这一屏已经输出了几行（draw 开头清零） */
+
+/* 开始新的一行。交互模式下换行放在下一行的开头、而不是这一行的末尾：屏幕最后一行后面
+ * 如果还有一个换行，光标已经在最底下，终端只好整屏上滚一行，第一行就被挤出了屏幕 */
+static void line_begin(void)
+{
+    if (!g_batch && g_lines_out > 0)
+        out_str("\n");
+    g_lines_out++;
+}
+
+static void line_end(void)
+{
+    out_str(g_batch ? "\n" : "\033[K");   /* \033[K：擦掉这一行右边上一屏留下的旧字 */
+}
+
 static void out_line(int cols, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 static void out_line(int cols, const char *fmt, ...)
 {
@@ -107,10 +123,9 @@ static void out_line(int cols, const char *fmt, ...)
     vsnprintf(buf, sizeof buf, fmt, ap);
     va_end(ap);
     size_t n = cols > 0 ? sk_utf8_fit(buf, cols, NULL) : strlen(buf);
+    line_begin();
     out_raw(buf, n);
-    if (!g_batch)
-        out_str("\033[K");
-    out_str("\n");
+    line_end();
 }
 
 /* ---------- 终端 ---------- */
@@ -279,6 +294,7 @@ static void draw(int rows, int cols)
 {
     if (!g_batch)
         out_str("\033[H");
+    g_lines_out = 0;
     int line = 0;
 
     /* 第 1 行：时间、运行时长、负载 */
@@ -350,11 +366,14 @@ static void draw(int rows, int cols)
     char hdr[160];
     snprintf(hdr, sizeof hdr, "%5s %-8s %3s %3s %6s %6s %c %5s %5s %9s %-*s", "PID", "USER", "PR", "NI", "VIRT",
              "RES", 'S', "%CPU", "%MEM", "TIME+", g_batch ? 1 : SK_MAX(1, cols - 58), "COMMAND");
+    line_begin();
     if (!g_batch)
         out_str("\033[7m");
     size_t hn = cols > 0 ? sk_utf8_fit(hdr, cols, NULL) : strlen(hdr);
     out_raw(hdr, hn);
-    out_str(g_batch ? "\n" : "\033[0m\033[K\n");
+    if (!g_batch)
+        out_str("\033[0m");
+    line_end();
     line++;
 
     if (g_rows)
@@ -381,13 +400,11 @@ static void draw(int rows, int cols)
             out_str("\033[1m");
         out_line(cols, "%5d %-8.8s %3s %3d %6s %6s %c %5.1f %5.1f %9s %s", (int)pi->pid, user, pr, pi->nice, virt,
                  res, pi->state, g_rows[i].cpu, pmem, tbuf, name);
-        if (highlight) {
-            /* out_line 已经输出了换行；把加粗关掉 */
-            out_str("\033[0m");
-        }
+        if (highlight)
+            out_str("\033[0m");   /* 把加粗关掉 */
     }
     if (!g_batch)
-        out_str("\033[J");   /* 擦掉屏幕下面剩下的旧内容 */
+        out_str("\033[J");   /* 擦掉光标后面（屏幕下面）剩下的旧内容 */
     else
         out_str("\n");
     out_flush();

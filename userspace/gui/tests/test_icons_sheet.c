@@ -35,7 +35,7 @@ static const char *names[SK_ICON_COUNT] = {
     "terminal", "folder", "file", "text", "image", "program", "notepad", "paint", "monitor", "clock",
     "about", "settings", "power", "reboot", "home", "up", "back", "new-folder", "trash", "save",
     "open", "pencil", "eraser", "brush", "line", "rect", "circle", "fill", "kernel", "chip",
-    "memory", "process", "logo", "book", "refresh",
+    "memory", "process", "logo", "book", "refresh", "search",
 };
 
 /* 在哨兵画布上单独画一个图标，确认没有画出方块（外扩 1 像素）之外 */

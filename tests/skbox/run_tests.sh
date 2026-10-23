@@ -29,10 +29,11 @@ FAIL=0
 FAILED_NAMES=()
 
 GENV="$(command -v gnuenv || command -v env)"
-# GNU 版命令：优先 gnuXXX
+# GNU 版命令：优先 gnuXXX。没有时用 env 运行外部程序——command 会优先用 bash 的内置命令，
+# 而内置的 printf/echo/test 和 GNU coreutils 行为不同（例如格式里的 \c）
 g() {
     local name="$1"; shift
-    if command -v "gnu$name" >/dev/null 2>&1; then "gnu$name" "$@"; else command "$name" "$@"; fi
+    if command -v "gnu$name" >/dev/null 2>&1; then "gnu$name" "$@"; else "$GENV" "$name" "$@"; fi
 }
 
 ok()   { PASS=$((PASS + 1)); }
@@ -444,9 +445,14 @@ for e in "-e lines.txt" "-f lines.txt" "-f d" "-d d" "-d lines.txt" "-L d/link" 
          "-z ''" "-n ''" "-z x" "abc" "''" "a = a" "a = b" "a != b" "a == a" "1 -eq 1" "2 -gt 10" "-5 -lt 3" \
          "10 -ge 10" "3 -le 2" "1 -ne 2" "! -e nope" "-e lines.txt -a -d d" "-e nope -o -d d" "! a = b" \
          "( a = a )" "( a = b ) -o a = a" "lines.txt -nt d/beta" "d/beta -ot lines.txt" "hs1 -ef h1" \
-         "-t 0" "x -a ''" "'' -o ''" "abc '<' abd" "abc '>' abd"; do
+         "-t 0" "x -a ''" "'' -o ''"; do
     same "test $e" "$SB/test $e; echo \$?" "g test $e; echo \$?"
 done
+# < 和 > 按字典序比较字符串（POSIX.1-2024 新增，bash 内置的 test 支持，GNU coreutils 的还不支持），直接写期望值
+expect "test abc '<' abd" "$SB/test abc '<' abd; echo \$?; $SB/test abd '<' abc; echo \$?" "0
+1"
+expect "test abc '>' abd" "$SB/test abc '>' abd; echo \$?; $SB/test abd '>' abc; echo \$?" "1
+0"
 same "test 错误" "$SB/test 1 -eq x; echo \$?; $SB/test a -zz b; echo \$?" "g test 1 -eq x; echo \$?; g test a -zz b; echo \$?"
 same "[ ]" "$SB/[ 1 -eq 1 ]; echo \$?; $SB/[ 1 -eq 1; echo \$?" "g [ 1 -eq 1 ]; echo \$?; g [ 1 -eq 1; echo \$?"
 same "true false" "$SB/true; echo \$?; $SB/false; echo \$?" "g true; echo \$?; g false; echo \$?"
@@ -566,7 +572,7 @@ check "ps -p" "$SB/ps -p \$SLEEPER | tail -1 | grep -q sleep && [ \$($SB/ps -p \
 check "ps -f" "$SB/ps -f | head -1 | grep -q 'UID  *PID  *PPID'"
 check "pstree 有树形字符" "$SB/pstree -p \$\$ | grep -q '───\\|─┬─'"
 check "pstree 显示 sleep" "$SB/pstree -p \$\$ | grep -q \"sleep(\$SLEEPER)\""
-check "pstree -A ASCII" "$SB/pstree -A -p \$\$ | grep -q -- '---'"
+check "pstree -A ASCII" "$SB/pstree -A -p \$\$ | grep -q -- '---\\|-+-'"
 check "free 表头和数值" "$SB/free | head -1 | grep -q '总计' && t=\$($SB/free | awk 'NR==2{print \$2}'); t2=\$(awk '/MemTotal/{print \$2}' /proc/meminfo); [ \"\$t\" = \"\$t2\" ]"
 check "free -m" "t=\$($SB/free -m | awk 'NR==2{print \$2}'); t2=\$(awk '/MemTotal/{print int(\$2/1024)}' /proc/meminfo); [ \"\$t\" = \"\$t2\" ]"
 check "free -h" "$SB/free -h | awk 'NR==2{print \$2}' | grep -q '[KMG]'"
@@ -581,8 +587,10 @@ check "kill -9" "sleep 100 & p=\$!; $SB/kill -9 \$p; wait \$p; [ \$? = 137 ]"
 check "kill 默认 TERM" "sleep 100 & p=\$!; $SB/kill \$p; wait \$p; [ \$? = 143 ]"
 check "killall" "(exec -a skbox_victim sleep 100) & p=\$!; sleep 0.2; $SB/killall skbox_victim 2>/dev/null || $SB/killall sleep; wait \$p; [ \$? -ge 128 ]"
 check "killall 没找到" "! $SB/killall nosuchprocname 2>/dev/null"
-check "lsof 显示自己的 fd" "exec 7<lines.txt; $SB/lsof -p \$\$ | grep -q 'lines.txt'; r=\$?; exec 7<&-; [ \$r = 0 ]"
-check "lsof 文件过滤" "exec 7<lines.txt; $SB/lsof \$T/w/lines.txt | grep -q \"\$\$\"; r=\$?; exec 7<&-; [ \$r = 0 ]"
+# check 在子 shell 里运行命令：exec 7< 打开的是子 shell 的 fd，所以查子 shell 自己的 pid
+# （$BASHPID 要在管道之前取出来，管道里的每个命令都在新的子进程里展开）
+check "lsof 显示自己的 fd" "me=\$BASHPID; exec 7<lines.txt; $SB/lsof -p \$me | grep -q 'lines.txt'; r=\$?; exec 7<&-; [ \$r = 0 ]"
+check "lsof 文件过滤" "me=\$BASHPID; exec 7<lines.txt; $SB/lsof \$T/w/lines.txt | grep -q \" \$me \"; r=\$?; exec 7<&-; [ \$r = 0 ]"
 check "lsof 有 cwd/txt" "$SB/lsof -p \$\$ | grep -q ' cwd ' && $SB/lsof -p \$\$ | grep -q ' txt '"
 check "dmesg（WSL 可能不允许读）" "$SB/dmesg >/dev/null 2>&1 || $SB/dmesg 2>&1 | grep -q 'dmesg: '"
 check "lscpu" "$SB/lscpu | grep -q '架构' && $SB/lscpu | grep -q \"\$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //' | cut -c1-20)\""

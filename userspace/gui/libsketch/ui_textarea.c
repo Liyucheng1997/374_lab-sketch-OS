@@ -2479,6 +2479,56 @@ void sk_textarea_cursor_pos(const sk_widget *w, int *line, int *col)
         *col = c;
 }
 
+/* 字节偏移（在 sk_textarea_get_text 返回的文字里，行与行之间算一个 \n）→ 文档位置。
+ * 超出范围截到末尾；落在一个 UTF-8 字符中间时退到这个字符的开头 */
+static ta_pos ta_pos_from_offset(const ta_doc *d, int off)
+{
+    if (off < 0)
+        off = 0;
+    for (int i = 0; i < d->n; i++) {
+        const ta_line *L = &d->lines[i];
+        if (off <= L->len) {
+            while (off > 0 && off < L->len && ((unsigned char)L->s[off] & 0xC0) == 0x80)
+                off--;
+            return ta_pos_make(i, off);
+        }
+        off -= L->len + 1;
+    }
+    return ta_pos_make(d->n - 1, d->lines[d->n - 1].len);   /* 文字末尾 */
+}
+
+static int ta_offset_of(const ta_doc *d, ta_pos p)
+{
+    int off = p.off;
+    for (int i = 0; i < p.line && i < d->n; i++)
+        off += d->lines[i].len + 1;
+    return off;
+}
+
+void sk_textarea_select(sk_widget *w, int start, int end)
+{
+    if (!ta_is(w))
+        return;
+    ta_priv *p = TA(w);
+    ta_move(w, ta_pos_from_offset(&p->doc, start), 0, 0, 0);
+    ta_move(w, ta_pos_from_offset(&p->doc, end), 0, 1, 0);
+    p->notify = 0;          /* 和 sk_textarea_set_text 一样：程序主动改的，不回调 on_change */
+}
+
+void sk_textarea_get_selection(const sk_widget *w, int *start, int *end)
+{
+    int a = 0, b = 0;
+    if (ta_is(w)) {
+        const ta_priv *p = TA(w);
+        a = ta_offset_of(&p->doc, p->anchor);
+        b = ta_offset_of(&p->doc, p->caret);
+    }
+    if (start)
+        *start = a;
+    if (end)
+        *end = b;
+}
+
 void sk_textarea_set_readonly(sk_widget *w, int readonly)
 {
     if (ta_is(w))

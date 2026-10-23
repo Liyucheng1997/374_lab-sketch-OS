@@ -278,12 +278,12 @@ def read_cmap(path):
 
 
 # ---------------------------------------------------------------------------
-# 字符宽度（终端里占几格）。表格从 font.c 里读出来，保证 C 代码的 sk_wcwidth()
+# 字符宽度（终端里占几格）。表格从 common/skutil.c 里读出来，保证 C 代码的 sk_wcwidth()
 # 和这里给等宽字体定的前进宽度完全一致（“单一事实来源”）。
 # ---------------------------------------------------------------------------
 class WcWidth:
-    def __init__(self, font_c_path):
-        with open(font_c_path, encoding="utf-8") as fp:
+    def __init__(self, src_path):
+        with open(src_path, encoding="utf-8") as fp:
             src = fp.read()
         self.zero = self._table(src, "WCWIDTH_ZERO")
         self.wide = self._table(src, "WCWIDTH_WIDE")
@@ -292,12 +292,12 @@ class WcWidth:
     def _table(src, name):
         m = re.search(r"/\* %s-BEGIN \*/(.*?)/\* %s-END \*/" % (name, name), src, re.S)
         if not m:
-            raise SystemExit("font.c 里找不到 %s 表的标记" % name)
+            raise SystemExit("skutil.c 里找不到 %s 表的标记" % name)
         pairs = re.findall(r"\{\s*(0x[0-9A-Fa-f]+)\s*,\s*(0x[0-9A-Fa-f]+)\s*\}", m.group(1))
         tab = [(int(a, 16), int(b, 16)) for a, b in pairs]
         if not tab or any(lo > hi for lo, hi in tab) or \
                 any(tab[i][1] >= tab[i + 1][0] for i in range(len(tab) - 1)):
-            raise SystemExit("font.c 的 %s 表为空、未排序或区间重叠" % name)
+            raise SystemExit("skutil.c 的 %s 表为空、未排序或区间重叠" % name)
         return tab
 
     @staticmethod
@@ -888,7 +888,7 @@ def write_readme(path, builds, sizes, stats):
     L.append("3. ascent/descent 取自字体的度量（FreeType 的 size metrics）；比例字体的行高取 "
              "max(ascent+descent, 字体推荐行高)；等宽字体的行高严格等于 ascent+descent。")
     L.append("4. 等宽字体：格宽 = 字母 M 的前进宽度；每个字的前进宽度 = `sk_wcwidth(码点) × 格宽`"
-             "（宽度表直接从 `font.c` 里读，保证和 C 代码一致）。汉字、全角字符正好两格；"
+             "（宽度表直接从 `common/skutil.c` 里读，保证和 C 代码一致）。汉字、全角字符正好两格；"
              "“东亚歧义宽度”字符（“”…—αβ●→ 等）按 Unicode 标准占一格——原字形太宽时，先换用比例字体的窄字形，"
              "还放不下就缩小：扁长的（— …）只压窄，其它的（● ★ →）等比例缩小以保持形状。")
     L.append("5. 制表符和方块元素在等宽字体里按像素合成：竖线画满整个行高、横线画满整个格宽，"
@@ -942,7 +942,7 @@ def compare_weights(srcdir, out):
 def main():
     ap = argparse.ArgumentParser(description="TrueType → SketchOS .skf 位图字体")
     ap.add_argument("--src", required=True, help="TTF 所在目录（scripts/env.sh 的 FONT_CACHE）")
-    ap.add_argument("--root", help="仓库根目录（扫描界面文字、读取 font.c 的宽度表）")
+    ap.add_argument("--root", help="仓库根目录（扫描界面文字、读取 common/skutil.c 的宽度表）")
     ap.add_argument("--out", help="输出目录（assets/fonts）")
     ap.add_argument("--builtin", help="内置后备字体 C 文件的输出路径")
     ap.add_argument("--compare", help="只生成字重对比图到这个 PNG")
@@ -954,7 +954,7 @@ def main():
     if not (a.root and a.out):
         ap.error("需要 --root 和 --out")
 
-    wcw = WcWidth(os.path.join(a.root, "userspace", "gui", "libsketch", "font.c"))
+    wcw = WcWidth(os.path.join(a.root, "userspace", "common", "skutil.c"))
     gb_symbols, gb_hanzi = gb2312_chars()
     if len(gb_hanzi) != 6763:
         raise SystemExit("GB2312 汉字数不对: %d" % len(gb_hanzi))

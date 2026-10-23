@@ -672,6 +672,43 @@ static void test_perf(void)
     free(big);
 }
 
+/* sk_textarea_select / sk_textarea_get_selection：按 get_text 文字里的字节偏移设置、读取选区 */
+static void test_select(void)
+{
+    printf("[选区接口]\n");
+    sk_widget *w = mk(400, 10, "第一行\nabc 中文\n\nend");
+    int a = -1, b = -1, line, col;
+    sk_textarea_get_selection(w, &a, &b);
+    CHECK(a == b);
+    char *t = text_of(w);
+    int off = (int)(strstr(t, "中文") - t);
+    sk_textarea_select(w, off, off + (int)strlen("中文"));
+    sk_textarea_get_selection(w, &a, &b);
+    CHECK(a == off && b == off + 6);
+    sk_textarea_cursor_pos(w, &line, &col);
+    CHECK(line == 2 && col == 7);               /* 光标在“中文”后面：a b c 空格 中 文 之后是第 7 列 */
+    type(w, "汉字");                             /* 有选区时打字替换选区 */
+    CHECK_TEXT(w, "第一行\nabc 汉字\n\nend");
+    /* 反向选区：锚点在后、光标在前 */
+    sk_textarea_select(w, off + 6, off);
+    sk_textarea_get_selection(w, &a, &b);
+    CHECK(a == off + 6 && b == off);
+    /* 偏移落在汉字中间退到字符开头；超出范围截到末尾；负数当 0 */
+    sk_textarea_select(w, 5, 100000);
+    sk_textarea_get_selection(w, &a, &b);
+    CHECK(a == 3 && b == (int)strlen(t));
+    sk_textarea_select(w, -7, -7);
+    sk_textarea_get_selection(w, &a, &b);
+    CHECK(a == 0 && b == 0);
+    /* 空行：第 3 行开头 = “第一行\nabc 汉字\n” 的长度 */
+    int l3 = (int)(strchr(strchr(t, '\n') + 1, '\n') - t) + 1;
+    sk_textarea_select(w, l3, l3);
+    sk_textarea_cursor_pos(w, &line, &col);
+    CHECK(line == 3 && col == 1);
+    free(t);
+    rm(w);
+}
+
 int main(void)
 {
     printf("test_ui_widgets: 多行编辑器核心逻辑\n");
@@ -680,6 +717,7 @@ int main(void)
     test_wrap();
     test_vertical();
     test_editing();
+    test_select();
     test_undo_limit();
     test_damage();
     test_property();

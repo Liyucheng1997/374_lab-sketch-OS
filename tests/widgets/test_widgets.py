@@ -546,6 +546,30 @@ def test_list_damage(d):
     app.finish()
 
 
+def test_list_placeholder(d):
+    """空列表的提示文字跨第 0、1 行；变成只有一行时，提示文字的下半截也要擦掉"""
+    app, w = start_twidgets(d)
+    header = max(26, FONT.line_height + 10)
+    rh = max(26, FONT.line_height + 8)
+    body_y = LIST_Y + 3 + header
+    probe_y = body_y + rh + rh // 4          # 提示文字下半截所在的位置（第 1 行里）
+    for key, how in (("f2", "普通 add"), ("f4", "clear 后重建")):
+        d.key(w, "f3")                        # 清空，显示提示文字
+        mark(app, w)
+        d.wait_idle(w, quiet=0.3)
+        start = len(d.requests)
+        d.key(w, key)
+        mark(app, w)
+        d.wait_idle(w, quiet=0.3)
+        rects = [r for r in damages_since(d, start, w) if r[2] > 16]
+        covered = any(r[1] <= probe_y < r[1] + r[3] and r[0] <= LIST_X + 170 < r[0] + r[2] for r in rects)
+        check(covered, "%s：空列表变成一行时重画了提示文字的下半截 %s" % (how, rects))
+        check(state(app, w)["count"] == 1, "%s：列表里只有一行" % how)
+    shot(d, w, "list-placeholder")
+    d.close(w)
+    app.finish()
+
+
 # ================================================================ 对话框测试
 
 def demo(d, kind, arg=None):
@@ -756,7 +780,7 @@ def test_gallery(d):
 
 TESTS = [test_typing_cjk, test_editing_keys, test_undo_redo, test_clipboard, test_double_click_word,
          test_wrap_resize, test_scroll, test_readonly, test_damage_typing,
-         test_list_keyboard, test_list_mouse, test_list_sort, test_list_damage,
+         test_list_keyboard, test_list_mouse, test_list_sort, test_list_damage, test_list_placeholder,
          test_message_dialogs, test_input_dialog, test_file_dialog_open, test_file_dialog_save, test_gallery]
 
 

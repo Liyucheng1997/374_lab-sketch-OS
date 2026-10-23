@@ -147,6 +147,12 @@ int        sk_textarea_modified(const sk_widget *w);
 void       sk_textarea_set_modified(sk_widget *w, int modified);
 /* 光标所在行列（从 1 开始），用于状态栏 */
 void       sk_textarea_cursor_pos(const sk_widget *w, int *line, int *col);
+/* 选区用 sk_textarea_get_text 返回的文字里的字节偏移表示（行与行之间算一个 \n）。
+ * select：锚点放在 start、光标放在 end（start == end 只移动光标），并滚动到光标可见；
+ * 偏移会被截到文字范围内、对齐到 UTF-8 字符开头；不触发 on_change（查找、跳到某行用）。
+ * get_selection：*start 是锚点、*end 是光标，没有选中时两者相等 */
+void       sk_textarea_select(sk_widget *w, int start, int end);
+void       sk_textarea_get_selection(const sk_widget *w, int *start, int *end);
 void       sk_textarea_set_readonly(sk_widget *w, int readonly);
 /* 自动换行（默认开启：按控件宽度折行，上下方向键按“显示行”移动）；关闭时可水平滚动 */
 void       sk_textarea_set_wrap(sk_widget *w, int wrap);

@@ -79,6 +79,9 @@ add("操作数里的展开", 'unset u; d=def; echo "${u:-$d and $(echo cmd)}"', 
 add("操作数分词", 'unset u; for w in ${u:-a b c}; do echo "<$w>"; done', bash=True)
 add("双引号操作数不分词", 'unset u; for w in "${u:-a b c}"; do echo "<$w>"; done', bash=True)
 add("双引号里单引号", "unset u; echo \"${u:-'q'}\"", bash=True)
+add("引号里空的默认值/替代值也是一个参数",
+    'unset u; e=; s=v; set -- "${u:-}" "${u-}" "${e:-}" "${s:+}" "${e:+x}"; echo $#; '
+    'set -- ${u:-} ${s:+}; echo $#; [ -n "${u:-}" -o 1 = 2 ] && echo 错 || echo 对', bash=True)
 add("$?", "true; echo $?; false; echo $?; (exit 7); echo $?", bash=True)
 add("$$ 与子 shell", 'a=$$; b=$(echo $$); [ "$a" = "$b" ] && echo same', bash=True)
 add("$# $@ $*", 'set -- "a b" c ""; echo $#; for x in "$@"; do echo "[$x]"; done; for x in $*; do echo "<$x>"; done', bash=True)

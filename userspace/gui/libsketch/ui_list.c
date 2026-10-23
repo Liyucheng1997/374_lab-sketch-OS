@@ -197,6 +197,20 @@ static void li_inval_bar(sk_widget *w)
     sk_widget_invalidate_rect(w, sk_rect_inset(LI(w)->vbar, -3, -3));
 }
 
+/* 空列表的提示文字画在第 0、1 行之间（跨两行），见 li_draw */
+static sk_rect li_placeholder_rect(const li_priv *p)
+{
+    return sk_rect_make(p->body.x, p->body.y + p->row_h / 2, p->body.w, p->row_h);
+}
+
+/* 列表从空变成非空：提示文字要擦掉。只让第 0 行失效会留下提示文字的下半截 */
+static void li_inval_placeholder(sk_widget *w)
+{
+    li_priv *p = LI(w);
+    if (w->text && *w->text)
+        sk_widget_invalidate_rect(w, sk_rect_intersect(li_placeholder_rect(p), p->body));
+}
+
 /* 滚动条滑块（与 theme.c 的 sk_draw_scrollbar 同一套公式，见 ui_textarea.c 的 ta_thumb） */
 static void li_thumb(const li_priv *p, int *pos, int *len)
 {
@@ -281,6 +295,8 @@ static void li_flush(sk_widget *w)
         return;
     if (p->old_n > p->n)
         li_inval_from(w, p->n);
+    if (p->old_n == 0 && p->n > 0)
+        li_inval_placeholder(w);
     if (p->old_n != p->n)
         li_inval_bar(w);
     if (p->old_sel != p->sel) {
@@ -456,8 +472,7 @@ static void li_draw(sk_widget *w, sk_canvas *c)
                 li_draw_row(w, c, i);
             /* 空列表的提示文字（sk_widget_set_text 设置） */
             if (p->n == 0 && w->text && *w->text)
-                sk_draw_text_in_rect(c, p->font, sk_rect_make(p->body.x, p->body.y + p->row_h / 2, p->body.w, p->row_h),
-                                     w->text, SK_INK_FAINT, SK_ALIGN_CENTER);
+                sk_draw_text_in_rect(c, p->font, li_placeholder_rect(p), w->text, SK_INK_FAINT, SK_ALIGN_CENTER);
             sk_pop_clip(c, ob);
         }
         sk_pop_clip(c, old);
@@ -922,6 +937,8 @@ int sk_list_add(sk_widget *w, int icon, const char *const *cells, intptr_t data)
         if (row >= p->old_n || !li_row_same(r, &p->old[row], nc))
             li_inval_row(w, row);
     } else {
+        if (row == 0)
+            li_inval_placeholder(w);
         li_inval_row(w, row);
         li_inval_bar(w);
     }

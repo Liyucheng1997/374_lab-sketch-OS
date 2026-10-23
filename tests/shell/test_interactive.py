@@ -493,7 +493,7 @@ def continuation_prompt(t, home):
     t.expect(r"n1\s*\nn2\s*\n")
     t.prompt()
     out = t.run("history 4")
-    ok("if true then echo yes; fi" in out, "多行命令在历史里没有合成一行：%r" % out)
+    ok("if true; then echo yes; fi" in out, "多行命令在历史里没有合成一行：%r" % out)
     ok("echo 'a'$'\\n''b'" in out, "引号里的换行在历史里不对：%r" % out)
     ok("for i in 1 2; do echo n$i; done" in out, "注释没有去掉：%r" % out)
     # 从历史里取回合成的那一行再执行，结果应该一样

@@ -5,6 +5,9 @@
  * 测试脚本通过模拟显示服务器（tools/mock_display.py）发鼠标键盘事件，
  * 再按功能键让程序把内部状态打印到标准输出（一行一个 JSON），据此检查控件行为：
  *
+ *   F2   在列表末尾 add 一行（不 clear）
+ *   F3   清空列表并显示提示文字（sk_widget_set_text）
+ *   F4   列表 clear 后只 add 一行
  *   F5   打印状态：{"a": 编辑器A文字, "a_mod":, "a_pos": [行, 列], "b":, "c":, "sel":, "count":, "scroll":,
  *                   "changes": 编辑器A的 on_change 次数, "cell": 列表第 2 行第 1 列}
  *   F6   sk_list_set_cell 改列表第 2 行第 1 列（测“只重画一个单元格”）
@@ -161,6 +164,19 @@ static int on_event(sk_window *win, const sk_event *e, void *user)
     if (e->type != SK_EVENT_KEY || e->key.state != 1)
         return 0;
     switch (e->key.keycode) {
+    case KEY_F2:
+    case KEY_F4: {
+        /* 测“从空列表变成非空”时提示文字被擦干净（F2 走普通 add，F4 走 clear 后的重建） */
+        if (e->key.keycode == KEY_F4)
+            sk_list_clear(t->list);
+        const char *cells[3] = { "新的一行", "1", "说明" };
+        sk_list_add(t->list, -1, cells, 100);   /* 不带图标：带图标会让整个列表重画，掩盖问题 */
+        return 1;
+    }
+    case KEY_F3:
+        sk_list_clear(t->list);
+        sk_widget_set_text(t->list, "列表是空的，按 F2 或 F4 添加一行");
+        return 1;
     case KEY_F5:
         dump(t);
         return 1;

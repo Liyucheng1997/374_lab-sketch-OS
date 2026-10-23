@@ -58,7 +58,7 @@
 
 #define CONNECT_TIMEOUT_MS  5000   /* 等 WELCOME 的时间 */
 #define CREATE_TIMEOUT_MS   5000   /* 等 WINDOW_CREATED 的时间 */
-#define DAMAGE_RECTS        4      /* 每个窗口最多攒几块 damage 矩形 */
+#define DAMAGE_RECTS        8      /* 每个窗口最多攒几块 damage 矩形（和 ui.c 的 DIRTY_MAX 一样多） */
 #define DAMAGE_MERGE_SLACK  2048   /* 合并两块矩形时允许“多画”的像素数 */
 
 /* ---------------------------------------------------------------- 数据结构 */
@@ -790,7 +790,9 @@ void sk_window_move(sk_window *w, int x, int y)
  * 服务器就要为同一块区域合成很多遍。所以我们先把矩形攒起来：
  *   - 新矩形被已有矩形包含 → 丢掉；
  *   - 和某块合并后“多出来的面积”很小（相邻、重叠）→ 合并成包围盒；
- *   - 攒满 DAMAGE_RECTS 块 → 和“合并代价”最小的那块合并。
+ *   - 攒满 DAMAGE_RECTS 块 → 在所有“两块一对”（包括新矩形和每一块）里，找合并后多画面积
+ *     最小的那一对合并。只拿新矩形去合并的话，两块离得很远的小矩形（比如窗口两边的两个标签）
+ *     会被合成一个横跨整个窗口的大矩形，而旁边可能正好有两块挨着的、合起来几乎不多画。
  * 每轮事件循环结束时一次性发出去。 */
 static void damage_add(sk_window *w, sk_rect r)
 {
@@ -810,13 +812,35 @@ static void damage_add(sk_window *w, sk_rect r)
                 best_cost = cost;
             }
         }
-        if (best >= 0 && (best_cost <= DAMAGE_MERGE_SLACK || w->ndamage >= DAMAGE_RECTS)) {
+        if (best >= 0 && best_cost <= DAMAGE_MERGE_SLACK) {
             r = rect_bbox(w->damage[best], r);
             w->damage[best] = w->damage[--w->ndamage];
             continue;                  /* 合并后的大矩形可能又和别的块重叠，再检查一遍 */
         }
-        w->damage[w->ndamage++] = r;
-        return;
+        if (w->ndamage < DAMAGE_RECTS) {
+            w->damage[w->ndamage++] = r;
+            return;
+        }
+        /* 攒满了：bj < 0 表示最便宜的是“新矩形 + 第 best 块”，否则是已有的 best 和 bj 两块 */
+        int bj = -1;
+        for (int i = 0; i < w->ndamage; i++)
+            for (int j = i + 1; j < w->ndamage; j++) {
+                sk_rect a = w->damage[i], b = w->damage[j];
+                long long cost = rect_area(rect_bbox(a, b)) - rect_area(a) - rect_area(b);
+                if (cost < best_cost) {
+                    best = i;
+                    bj = j;
+                    best_cost = cost;
+                }
+            }
+        if (bj < 0) {
+            r = rect_bbox(w->damage[best], r);
+            w->damage[best] = w->damage[--w->ndamage];
+        } else {
+            w->damage[best] = rect_bbox(w->damage[best], w->damage[bj]);
+            w->damage[bj] = w->damage[--w->ndamage];
+        }
+        /* 腾出了一个位置，再走一遍：新矩形可能已经被合并出来的大矩形盖住了 */
     }
 }
 
@@ -1366,9 +1390,12 @@ static void dispatch_one(sk_app *app, msg_node *m)
         e.win = w;
         w->busy++;
         int handled = w->handler ? w->handler(w, &e, w->user) : 0;
-        w->busy--;
+        /* 默认动作：关掉窗口。要在 busy-- 之前销毁：这时窗口还算“忙”，会先进墓地，
+         * 由下面的 reap 统一释放；先 busy-- 的话 sk_window_destroy 会立刻 free，
+         * reap 再读 w->dead 就是访问已释放的内存 */
         if (!handled)
-            sk_window_destroy(w);      /* 默认动作：关掉窗口 */
+            sk_window_destroy(w);
+        w->busy--;
         goto reap;
     }
     case SK_EV_CLIPBOARD:

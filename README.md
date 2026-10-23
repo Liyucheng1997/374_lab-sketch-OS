@@ -6,6 +6,9 @@
 
 ## 快速体验
 
+在线体验（浏览器里直接启动）：<https://liyucheng1997.github.io/374_lab-sketch-OS/>
+——每次推送到 main，GitHub Actions 会完整构建一遍并发布网页版（见 `.github/workflows/pages.yml`）。
+
 从 GitHub Releases 下载 `SketchOS-v1.0.0-web.zip` 并解压，在安装了 Python 或 Node.js 的 Windows 上双击 `windows/启动网页版.bat`。
 
 也可在解压目录运行：
@@ -32,7 +35,8 @@ bash scripts/build.sh
 bash scripts/run-qemu.sh
 ```
 
-`out/`、`web/lib/` 和 `web/images/` 为生成或下载的运行资源，不纳入源码提交；预构建网页版随 Release 单独提供。
+`out/`、`web/lib/` 和 `web/images/` 为生成或下载的运行资源，不纳入源码提交；预构建网页版随 Release 单独提供，
+在线版本由 GitHub Actions 构建后发布到 GitHub Pages。
 
 ## 项目结构
 
