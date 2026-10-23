@@ -541,10 +541,6 @@ static void sw_update_timer(clock_app *k)
 
 static void sw_fill_laps(clock_app *k)
 {
-    /* 绕开 libsketch 列表的一个小问题：空列表的提示文字画在第 0、1 两行之间，
-     * 列表从空变成 1 行时库只重画第 0 行，提示文字的下半截会留在屏幕上。所以这时整个列表重画一次 */
-    if (sk_list_count(k->laps) == 0 && k->nlaps > 0)
-        sk_widget_invalidate(k->laps);
     sk_list_clear(k->laps);
     for (int i = k->nlaps - 1; i >= 0; i--) {          /* 最新的一次在最上面 */
         char no[24], split[32], total[32];
