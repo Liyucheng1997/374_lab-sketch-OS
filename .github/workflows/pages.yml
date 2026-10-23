@@ -5,12 +5,14 @@
 # 也就是 scripts/build.sh 做的全部事情，然后把 web/ 目录发布成静态网站。
 # web/lib 和 web/images 是构建产物，不在仓库里（见 .gitignore），所以必须在这里现场生成。
 #
+# 拉取请求（PR）也会完整构建一遍，用来提前发现构建问题，但只有 main 才会发布。
 # 第一次使用前要在仓库的 Settings → Pages → Build and deployment → Source 里选 “GitHub Actions”。
 name: 网页版（GitHub Pages）
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -59,6 +61,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
