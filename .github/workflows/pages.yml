@@ -44,7 +44,11 @@ jobs:
             ~/sketchos-work/src/v86
           key: sketchos-work-${{ runner.os }}-${{ hashFiles('scripts/env.sh', 'scripts/toolchain.sh') }}
 
+      # 正常 8 分钟左右。软件源偶尔会慢得出奇（一次 26 分钟还没装完依赖）：超时就失败，别干等
       - name: 构建（工具链、内核、用户态、initramfs、网页资源）
+        timeout-minutes: 30
+        env:
+          SKETCHOS_NO_QEMU: 1          # 这里只构建、不运行虚拟机，QEMU 和它的几十个依赖包都用不上
         run: bash scripts/build.sh
 
       - name: 检查网页资源齐全
