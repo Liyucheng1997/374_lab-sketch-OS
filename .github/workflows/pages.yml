@@ -20,9 +20,9 @@ permissions:
   pages: write
   id-token: write
 
-# 同一时间只发布一次；正在进行的发布不取消，免得网站停在一半的状态
+# 同一个分支同一时间只跑一次；正在进行的发布不取消，免得网站停在一半的状态
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
