@@ -353,6 +353,24 @@ def test_top(sb, tmp):
     finally:
         p.close()
 
+    # 一屏正好占满终端：最后一行后面不能再换行，否则终端上滚一行，第一行“top - …”就看不见了
+    p = Pty([top, "-d", "0.3"], rows=12, cols=100)
+    try:
+        p.expect(r"PID USER")
+        p.clear()
+        p.read(0.8)
+        frames = [f.split("\x1b[J")[0] for f in p.text().split("\x1b[H")[1:] if "\x1b[J" in f]
+        check(frames, "收到完整的一屏", repr(p.text()[-300:]))
+        if frames:
+            f = frames[-1]
+            check(f.count("\n") == 11, "12 行的终端里一屏有 11 个换行（最后一行后面没有换行）",
+                  "%d 个换行" % f.count("\n"))
+            check(strip_ansi(f).startswith("top - "), "第一行是“top - …”", strip_ansi(f)[:80])
+        p.send("q")
+        p.wait()
+    finally:
+        p.close()
+
     # -n：刷新指定次数后自己退出
     p = Pty([top, "-d", "0.2", "-n", "3"], rows=24, cols=80)
     try:

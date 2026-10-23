@@ -32,8 +32,9 @@ fi
 [ ${#APPS[@]} -gt 0 ] || die "tests/apps/ 里还没有 test_<应用>.py"
 
 [ -x "$SKCC" ] || die "找不到 $SKCC，请先运行 scripts/toolchain.sh"
+# 全部编译，不只是被测的应用：终端的测试还要在里面运行 sksh、skbox，它们改了也要跟着重编
 log "编译用户态程序 → $B"
-make -C "$ROOT/userspace" CC="$SKCC" BUILD="$B" -j"$JOBS" "${APPS[@]}" >/dev/null || die "编译失败"
+make -C "$ROOT/userspace" CC="$SKCC" BUILD="$B" -j"$JOBS" all >/dev/null || die "编译失败"
 
 PASSED=(); FAILED=()
 for a in "${APPS[@]}"; do
