@@ -1154,7 +1154,8 @@ static int slider_event(sk_widget *w, const sk_event *e)
             return 1;
         }
     }
-    if (is_press(e)) {
+    /* 带 Ctrl/Alt 的方向键留给应用当快捷键（和列表、按钮的做法一样） */
+    if (is_press(e) && !(e->key.modifiers & (SK_MOD_CTRL | SK_MOD_ALT | SK_MOD_SUPER))) {
         switch (e->key.keycode) {
         case KEY_LEFT: case KEY_DOWN:  slider_set(w, p->value - step, 1); return 1;
         case KEY_RIGHT: case KEY_UP:   slider_set(w, p->value + step, 1); return 1;

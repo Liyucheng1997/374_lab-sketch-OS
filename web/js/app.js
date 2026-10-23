@@ -482,7 +482,8 @@
                 screen_container: ui.screen,
                 acpi: false,
                 autostart: true,
-                disable_speaker: true,
+                // 打开声音：v86 模拟一块 Sound Blaster 16，声卡放出的采样经 Web Audio 从浏览器播放（“音乐”应用用它）
+                disable_speaker: false,
             });
         } catch (e) {
             showError("模拟器创建失败", "new V86() 抛出了异常。", { detail: String(e && e.message || e) });
@@ -1044,6 +1045,15 @@
             const b = e.target.closest("[data-action]");
             if (b && b.getAttribute("data-action") === "boot") startMachine();
         });
+
+        // 声音：v86 开机时就建好了 AudioContext，但浏览器规定“用户和页面交互之前不许出声”，
+        // 它会一直处于 suspended 状态。用户第一次点击或按键时把它恢复（之后每次交互都检查一下，代价很小）
+        const resumeAudio = () => {
+            const ctx = S.emu && S.emu.speaker_adapter && S.emu.speaker_adapter.audio_context;
+            if (ctx && ctx.state === "suspended") ctx.resume().catch(() => { /* 还不允许：下次交互再试 */ });
+        };
+        document.addEventListener("pointerdown", resumeAudio, true);
+        window.addEventListener("keydown", resumeAudio, true);
 
         // 点屏幕 = 把键盘交给虚拟机；点别处 = 收回
         document.addEventListener("pointerdown", (e) => {

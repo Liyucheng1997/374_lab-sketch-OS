@@ -67,6 +67,18 @@ else
     ACCEL="软件模拟 (TCG)"
 fi
 
+# 声卡：Sound Blaster 16（和网页版 v86 模拟的一样）。WSLg 自带 PulseAudio 服务，声音能直接从 Windows 放出来；
+# 没有可用的声音服务时用 none：系统里照样有声卡，只是听不见
+backends_audio="$("$QEMU" -audiodev help 2>/dev/null || true)"
+if [ -n "${PULSE_SERVER:-}" ] && grep -qw pa <<<"$backends_audio"; then
+    ARGS+=(-audiodev pa,id=snd0)
+    AUDIO_DESC="PulseAudio"
+else
+    ARGS+=(-audiodev none,id=snd0)
+    AUDIO_DESC="无（没有检测到 PulseAudio，听不见声音）"
+fi
+ARGS+=(-device sb16,audiodev=snd0)
+
 if [ "$NOGUI" = 1 ]; then
     # -nographic：不开窗口，串口和 QEMU 监视器都接到当前终端
     ARGS+=(-nographic)
@@ -89,7 +101,7 @@ else
 fi
 
 log "QEMU：$QEMU"
-log "加速：$ACCEL；内存 ${MEM}MB；显示：$DISPLAY_DESC"
+log "加速：$ACCEL；内存 ${MEM}MB；显示：$DISPLAY_DESC；声音：$AUDIO_DESC"
 log "内核命令行：$CMDLINE"
 if [ "$DRY" = 1 ]; then
     printf '%q ' "$QEMU" "${ARGS[@]}"

@@ -52,6 +52,8 @@ int  fm_name_cmp(const char *a, const char *b);
 
 /* 名字的扩展名是不是画板能打开的图片（.ppm .pgm .pbm） */
 int  fm_is_image_name(const char *name);
+/* 名字的扩展名是不是音乐播放器能打开的声音文件（.wav） */
+int  fm_is_audio_name(const char *name);
 /* 读文件开头 4 KB：没有 NUL 字节就当作文本（*is_text=1）。成功返回 0 */
 int  fm_sniff_text(const char *path, int *is_text);
 

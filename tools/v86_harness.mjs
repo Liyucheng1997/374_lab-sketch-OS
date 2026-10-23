@@ -16,6 +16,7 @@
  *     --lib 目录          v86 文件所在目录，默认 web/lib
  *     --script 文件       测试脚本（见下）；不给脚本时进入交互模式：键盘输入直接发到串口，Ctrl+] 退出
  *     --log 文件          串口日志保存路径
+ *     --audio-wav 文件    把 SB16 声卡放出的声音录成 WAV 文件（停机时写出）
  *     --quiet             不把串口输出打印到终端（默认会实时打印）
  *     --timeout 秒        脚本跑完后再保持运行的秒数（交互模式下表示最长运行时间）
  *     --screen WxH        文本模式下鼠标坐标换算用的屏幕大小，默认 1024x768（图形模式自动用真实分辨率）
@@ -366,6 +367,8 @@ export class V86VM {
         this.echo = opts.echo !== false;
         this.screenW = opts.screenW || 1024;
         this.screenH = opts.screenH || 768;
+        this.audioWav = opts.audioWav ? hostPath(opts.audioWav) : null;
+        this._audio = [];                        // 录下的声音：[左声道 Float32Array, 右声道, 采样率] 的列表
         this.emulator = null;
         this._buf = "";
         this._decoder = new TextDecoder("utf-8");
@@ -429,6 +432,7 @@ export class V86VM {
         this._buttons = [false, false, false];
         this._mouse = null;
         emulator.add_listener("serial0-output-byte", (b) => this._onSerialByte(b));
+        this._attachFakeDac(emulator);
         await new Promise((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error("v86 初始化超时（60 秒）")), 60000);
             emulator.add_listener("emulator-started", () => { clearTimeout(timer); resolve(); });
@@ -460,8 +464,62 @@ export class V86VM {
         }
     }
 
+    /** 假的声音输出端。v86 的 SB16 不按自己的时钟播放：浏览器里是 Web Audio 播放器在缓冲快空的时候
+     *  发 "dac-request-data"，SB16 才通过 DMA 从客户机内存取下一块采样、用 "dac-send-data" 交出来，
+     *  取完一整段再发中断。Node 里没有 Web Audio（disable_speaker），没人要数据，客户机的声卡驱动就会
+     *  一直等下去。这里用定时器按真实速度“消耗”采样、不够了就要，和浏览器里的节奏一样；
+     *  给了 audioWav（--audio-wav）时把收到的采样录下来，stop() 时写成 WAV 文件。 */
+    _attachFakeDac(emulator) {
+        const bus = emulator.bus;
+        const dac = { rate: 22050, enabled: false, queued: 0, last: Date.now() };
+        bus.register("dac-tell-sampling-rate", (r) => { dac.rate = r; });
+        bus.register("dac-enable", () => { dac.enabled = true; dac.last = Date.now(); });
+        bus.register("dac-disable", () => { dac.enabled = false; });
+        bus.register("dac-send-data", (data) => {
+            dac.queued += data[0].length;
+            if (this.audioWav) this._audio.push([data[0], data[1], dac.rate]);
+        });
+        if (this._dacTimer) clearInterval(this._dacTimer);
+        this._dacTimer = setInterval(() => {
+            const now = Date.now();
+            dac.queued = Math.max(0, dac.queued - (now - dac.last) * dac.rate / 1000);
+            dac.last = now;
+            // 保持 0.1 秒的“已缓冲”声音（每次最多要 8 块，防止 DMA 回调是异步的时候一下要太多）
+            for (let i = 0; i < 8 && dac.enabled && dac.queued < dac.rate * 0.1 && this.emulator === emulator; i++) {
+                const before = dac.queued;
+                bus.send("dac-request-data");
+                if (dac.queued === before) break;
+            }
+        }, 10);
+    }
+
+    _writeAudio() {
+        if (!this.audioWav) return;
+        const rate = this._audio.length ? this._audio[this._audio.length - 1][2] : 22050;
+        const frames = this._audio.reduce((n, a) => n + a[0].length, 0);
+        const buf = Buffer.alloc(44 + frames * 4);
+        buf.write("RIFF", 0); buf.writeUInt32LE(36 + frames * 4, 4); buf.write("WAVEfmt ", 8);
+        buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(2, 22);
+        buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 4, 28); buf.writeUInt16LE(4, 32);
+        buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(frames * 4, 40);
+        let off = 44;
+        const s16 = (v) => Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
+        for (const [l, r] of this._audio) {
+            for (let i = 0; i < l.length; i++, off += 4) {
+                buf.writeInt16LE(s16(l[i]), off);
+                buf.writeInt16LE(s16(r[i]), off + 2);
+            }
+        }
+        fs.writeFileSync(this.audioWav, buf);
+    }
+
     async stop() {
         if (this._rebooting) await this._rebooting;
+        if (this._dacTimer) {
+            clearInterval(this._dacTimer);
+            this._dacTimer = null;
+        }
+        this._writeAudio();
         if (this.emulator) {
             const emu = this.emulator;
             this.emulator = null;
@@ -822,6 +880,7 @@ function parseArgs(argv) {
             case "--lib": opts.lib = need(i); i++; break;
             case "--script": opts.script = need(i); i++; break;
             case "--log": opts.log = need(i); i++; break;
+            case "--audio-wav": opts.audioWav = need(i); i++; break;
             case "--timeout": opts.timeout = Number(need(i)); i++; break;
             case "--quiet": opts.echo = false; break;
             case "--screen": {

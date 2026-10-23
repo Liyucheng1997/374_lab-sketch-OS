@@ -51,6 +51,7 @@ static const struct {
     { "pbm", "PBM 图片", SK_ICON_IMAGE },     { "png", "PNG 图片", SK_ICON_IMAGE },
     { "bmp", "BMP 图片", SK_ICON_IMAGE },     { "jpg", "JPEG 图片", SK_ICON_IMAGE },
     { "jpeg", "JPEG 图片", SK_ICON_IMAGE },   { "gif", "GIF 图片", SK_ICON_IMAGE },
+    { "wav", "WAV 音频", SK_ICON_MUSIC },     { "mp3", "MP3 音频", SK_ICON_MUSIC },
     { "skf", "SketchOS 字体", SK_ICON_FILE }, { "gz", "gzip 压缩包", SK_ICON_FILE },
     { "tar", "tar 归档", SK_ICON_FILE },      { "cpio", "cpio 归档", SK_ICON_FILE },
     { "o", "目标文件", SK_ICON_FILE },        { "a", "静态库", SK_ICON_FILE },
@@ -96,6 +97,12 @@ int fm_is_image_name(const char *name)
 {
     const char *ext = extension(name);
     return ext && (ext_equal(ext, "ppm") || ext_equal(ext, "pgm") || ext_equal(ext, "pbm"));
+}
+
+int fm_is_audio_name(const char *name)
+{
+    const char *ext = extension(name);
+    return ext && ext_equal(ext, "wav");
 }
 
 /* 根据（跟随链接之后的）类型和名字，决定图标和“类型”列的文字。

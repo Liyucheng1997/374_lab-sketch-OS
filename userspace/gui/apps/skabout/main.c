@@ -48,7 +48,7 @@
 #define INFO_W      310          /* 宽窗口时右边信息栏的宽度 */
 #define WIDE_MIN    780          /* 窗口至少这么宽才把图和信息并排放 */
 #define NLAYERS     4
-#define MAX_CHIPS   7
+#define MAX_CHIPS   8
 #define NINFO       7
 #define NOTE_H      120         /* 便签：标题一行 + 三行解释 */
 #define NOTE_MIN_H  80          /* 比这还矮就不放便签，改用消息框显示解释 */
@@ -76,13 +76,14 @@ static const layer_def layers[NLAYERS] = {
     { "图形应用", "每个应用都是一个独立的进程", SK_YELLOW, SK_ICON_SKETCH_LOGO,
       "每个图形应用都是一个普通进程，自己不碰显卡：画好的像素放在和 sketchd 共享的内存里，"
       "再通过 Unix 域套接字告诉 sketchd“这一块画好了”。",
-      7,
+      8,
       { { SK_ICON_TERMINAL, "skterm", "终端", "终端模拟器：在窗口里画出字符，把键盘输入经过伪终端（pty）交给 shell，再把程序的输出画出来。" },
         { SK_ICON_FOLDER, "skfiles", "文件", "文件管理器：用 opendir / readdir / stat 浏览目录，用 rename / unlink 整理文件。" },
         { SK_ICON_NOTEPAD, "sknote", "记事本", "记事本：用 open / read / write 读写文本文件；多行编辑器控件来自 libsketch。" },
         { SK_ICON_PAINT, "skpaint", "画板", "画板：直接在一块像素缓冲区上作画，可以保存成 PPM 图片。" },
         { SK_ICON_MONITOR, "skmon", "监视器", "系统监视器：每秒读一遍 /proc，显示 CPU、内存和所有进程，还能给进程发信号。" },
         { SK_ICON_CLOCK, "skclock", "时钟", "时钟：每秒被定时器唤醒一次读当前时间，其余时间睡在 poll() 里，不占 CPU。" },
+        { SK_ICON_MUSIC, "skmusic", "音乐", "音乐播放器：按简谱算出声音的采样（或者从 WAV 文件里读出来），write() 进 /dev/dsp，声卡就把它播出来。" },
         { SK_ICON_ABOUT, "skabout", "关于", "就是你正在看的这个窗口：它读 /etc/os-release、uname()、/proc/cpuinfo 来认识这台机器。" } } },
     { "系统程序", "用户态 · 全是我们自己写的", SK_BLUE, SK_ICON_PROCESS,
       "内核之上的用户态程序全部是自己写的（只用了 musl C 库）。它们碰不到硬件，"
@@ -100,16 +101,17 @@ static const layer_def layers[NLAYERS] = {
       { { -1, "进程调度", NULL, "调度器决定下一刻由谁使用 CPU：时钟中断定期打断正在运行的进程，让大家轮流运行。" },
         { -1, "内存管理", NULL, "每个进程有自己的虚拟地址空间，内核用页表把它映射到物理内存；malloc 和 mmap 最终都要找它要内存页。" },
         { -1, "文件系统", NULL, "VFS 把 tmpfs、proc、sysfs、devtmpfs 统一成一棵目录树；/proc 里的文件是内核在你读的时候现场生成的。" },
-        { -1, "设备驱动", NULL, "bochs-drm 显卡、i8042 键盘鼠标、evdev 输入、8250 串口……驱动把硬件包装成 /dev 下的文件。" } } },
+        { -1, "设备驱动", NULL, "bochs-drm 显卡、i8042 键盘鼠标、evdev 输入、8250 串口、ALSA 的 SB16 声卡……驱动把硬件包装成 /dev 下的文件。" } } },
     { "虚拟硬件", "QEMU 或 v86（浏览器里的模拟器）", SK_ORANGE, SK_ICON_CHIP,
       "这台“电脑”是模拟出来的：在 Windows 上由 QEMU、在网页里由 v86 扮演一台完整的 x86 电脑。"
       "内核以为自己在真机上，操作的是同样的端口和寄存器。",
-      5,
+      6,
       { { -1, "CPU", NULL, "x86 处理器：一条条执行指令；区分内核态和用户态，收到中断就跳进内核的处理程序。" },
         { -1, "内存", NULL, "物理内存（RAM）：内核把它切成 4 KB 的“页”，再分给各个进程和自己用。" },
         { -1, "显卡", NULL, "Bochs VBE 显卡：一块帧缓冲（显存），内核的 bochs-drm 驱动把它交给 sketchd 画桌面。" },
         { -1, "键盘鼠标", NULL, "PS/2 键盘和鼠标：每按一个键就产生一次中断，内核的 i8042 驱动把它变成输入事件。" },
-        { -1, "串口", NULL, "16550 串口：最古老、最简单的“终端”，开机日志和串口 shell 都走这里。" } } },
+        { -1, "串口", NULL, "16550 串口：最古老、最简单的“终端”，开机日志和串口 shell 都走这里。" },
+        { -1, "声卡", NULL, "Sound Blaster 16：插在 ISA 总线上的老式声卡（端口 0x220、中断 5），用 DMA 自己从内存里取声音采样播放。" } } },
 };
 
 /* 相邻两层之间怎么“说话” */

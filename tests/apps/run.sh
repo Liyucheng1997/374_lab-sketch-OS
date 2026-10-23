@@ -1,5 +1,5 @@
 #!/bin/bash
-# 图形应用（skterm、skfiles、sknote、skpaint、skmon、skclock、skabout）的自动化测试
+# 图形应用（skterm、skfiles、sknote、skpaint、skmon、skclock、skmusic、skabout）的自动化测试
 #
 #   bash tests/apps/run.sh                 编译全部用户态程序，运行 tests/apps/test_*.py
 #   bash tests/apps/run.sh sknote skterm   只测这几个应用

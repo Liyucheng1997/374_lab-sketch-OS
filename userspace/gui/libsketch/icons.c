@@ -606,6 +606,19 @@ static void ic_search(ictx *ic)
         i_arc(ic, 20, 20, 14, SK_PI * 1.05f, SK_PI * 1.45f, SK_BLUE, 1.2f);
 }
 
+/* 音乐：粉色唱片圈里两个连在一起的八分音符（斜椭圆的符头、竖直的符干、一道粗横梁） */
+static void ic_music(ictx *ic)
+{
+    i_circle(ic, 24, 24, 42, SK_INK, SK_PINK);
+    i_circle(ic, 24, 24, 31, 0, SK_PAPER);
+    i_line_w(ic, 20.5f, 31, 20.5f, 14, SK_INK, 1.3f);
+    i_line_w(ic, 32.5f, 28, 32.5f, 11, SK_INK, 1.3f);
+    float beam[8] = { 20.5f, 13, 32.5f, 10, 32.5f, 14.5f, 20.5f, 17.5f };
+    i_poly(ic, beam, 4, SK_INK, SK_INK);
+    i_ellipse(ic, 17.5f, 32, 8, 6, SK_INK, SK_INK);
+    i_ellipse(ic, 29.5f, 29, 8, 6, SK_INK, SK_INK);
+}
+
 typedef void (*icon_fn)(ictx *);
 static const icon_fn icon_table[SK_ICON_COUNT] = {
     [SK_ICON_TERMINAL] = ic_terminal,     [SK_ICON_FOLDER] = ic_folder,
@@ -626,6 +639,7 @@ static const icon_fn icon_table[SK_ICON_COUNT] = {
     [SK_ICON_MEMORY] = ic_memory,         [SK_ICON_PROCESS] = ic_process,
     [SK_ICON_SKETCH_LOGO] = ic_logo,      [SK_ICON_BOOK] = ic_book,
     [SK_ICON_REFRESH] = ic_refresh,       [SK_ICON_SEARCH] = ic_search,
+    [SK_ICON_MUSIC] = ic_music,
 };
 
 void sk_draw_icon(sk_canvas *c, int icon, int x, int y, int size, uint32_t seed)
@@ -673,6 +687,7 @@ int sk_icon_from_name(const char *name)
         { "fill", SK_ICON_FILL }, { "kernel", SK_ICON_KERNEL }, { "chip", SK_ICON_CHIP },
         { "memory", SK_ICON_MEMORY }, { "process", SK_ICON_PROCESS }, { "logo", SK_ICON_SKETCH_LOGO },
         { "book", SK_ICON_BOOK }, { "refresh", SK_ICON_REFRESH }, { "search", SK_ICON_SEARCH },
+        { "music", SK_ICON_MUSIC },
         /* 常见的别名 */
         { "new_folder", SK_ICON_NEW_FOLDER }, { "sketch", SK_ICON_SKETCH_LOGO },
         { "sketchos", SK_ICON_SKETCH_LOGO }, { "document", SK_ICON_TEXT }, { "picture", SK_ICON_IMAGE },
@@ -680,7 +695,7 @@ int sk_icon_from_name(const char *name)
         { "restart", SK_ICON_REBOOT }, { "delete", SK_ICON_TRASH }, { "info", SK_ICON_ABOUT },
         { "rectangle", SK_ICON_RECT }, { "ellipse", SK_ICON_CIRCLE }, { "bucket", SK_ICON_FILL },
         { "files", SK_ICON_FOLDER }, { "help", SK_ICON_BOOK }, { "doc", SK_ICON_BOOK },
-        { "find", SK_ICON_SEARCH },
+        { "find", SK_ICON_SEARCH }, { "audio", SK_ICON_MUSIC }, { "sound", SK_ICON_MUSIC },
     };
     if (!name)
         return SK_ICON_PROGRAM;

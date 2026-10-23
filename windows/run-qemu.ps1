@@ -178,7 +178,10 @@ $qargs = @(
     "-initrd", "initramfs.cpio.gz",
     "-append", $cmdline,
     "-rtc", "base=utc",
-    "-accel", $Accel
+    "-accel", $Accel,
+    # 声卡：Sound Blaster 16（和网页版一样），声音经 Windows 的 DirectSound 放出来
+    "-audiodev", "dsound,id=snd0",
+    "-device", "sb16,audiodev=snd0"
 )
 if ($NoGui) {
     $qargs += "-nographic"                      # 不开窗口，串口和监视器都在这个控制台里

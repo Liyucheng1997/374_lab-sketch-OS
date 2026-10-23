@@ -79,7 +79,9 @@ def char_to_keys(ch):
 class VM:
     def __init__(self, kernel=DEFAULT_KERNEL, initrd=DEFAULT_INITRD, cmdline=DEFAULT_CMDLINE,
                  extra_cmdline="", mem=256, workdir=None, log_path=None, extra_args=None,
-                 screen_w=1024, screen_h=768):
+                 screen_w=1024, screen_h=768, audio_wav=None):
+        """audio_wav：把声卡放出的声音录进这个 WAV 文件（默认丢掉）"""
+        self.audio_wav = audio_wav
         self.kernel = kernel
         self.initrd = initrd
         self.cmdline = (cmdline + " " + extra_cmdline).strip()
@@ -113,6 +115,9 @@ class VM:
             "-serial", "chardev:ser0",
             "-qmp", "unix:%s,server=on,wait=off" % qmp_path,
             "-rtc", "base=utc",
+            # 和网页版（v86）一样插一块 SB16 声卡；声音默认丢掉（none），audio_wav 时录进 WAV 文件
+            "-audiodev", ("wav,id=snd0,path=%s" % self.audio_wav) if self.audio_wav else "none,id=snd0",
+            "-device", "sb16,audiodev=snd0",
         ] + self.extra_args
         self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         deadline = time.time() + 15

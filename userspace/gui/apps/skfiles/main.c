@@ -681,6 +681,10 @@ static void open_entry(fm_app *fm, const char *name_in)
         launch(fm, "paint", full, "画板", name);
         return;
     }
+    if (fm_is_audio_name(name)) {
+        launch(fm, "music", full, "音乐", name);
+        return;
+    }
     if (st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
         /* 可执行文件（任何一个 x 位）：在终端里运行它，这样能看见它的输出 */
         char cmd[FM_PATH_MAX * 2];
@@ -1478,7 +1482,8 @@ static void setup_places(fm_app *fm)
     char path[FM_PATH_MAX];
     add_place(fm, "主目录", SK_ICON_HOME, fm->home);
     static const struct { const char *name; int icon; } sub[] = {
-        { "文档", SK_ICON_BOOK }, { "图片", SK_ICON_IMAGE }, { "示例", SK_ICON_TERMINAL },
+        { "文档", SK_ICON_BOOK }, { "图片", SK_ICON_IMAGE }, { "音乐", SK_ICON_MUSIC },
+        { "示例", SK_ICON_TERMINAL },
     };
     for (size_t i = 0; i < SK_ARRAY_LEN(sub); i++) {
         sk_path_join(path, sizeof path, fm->home, sub[i].name);
