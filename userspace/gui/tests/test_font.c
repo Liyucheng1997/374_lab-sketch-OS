@@ -10,7 +10,8 @@
  * 损坏/截断/随机字体文件（必须返回 NULL 而不是崩溃）、mmap 失败时的 read() 回退、
  * 字体文件全部缺失时的内置后备字体。
  *
- * 只链接 font.c 和 font_builtin.c，不依赖 gfx.c：画布用本文件里的小工具函数创建。
+ * 只链接 font.c、font_builtin.c 和 common/skutil.c（sk_wcwidth），不依赖 gfx.c：
+ * 画布用本文件里的小工具函数创建。
  * 建议再用 -fsanitize=address,undefined -Wl,--wrap=mmap 编译运行一次：
  * 前者能发现任何越界访问，后者启用 read() 回退路径的测试（见第 9 节）。
  * 退出码 = 失败的检查数（0 表示全部通过）。
