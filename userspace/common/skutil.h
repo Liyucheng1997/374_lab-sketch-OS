@@ -14,7 +14,7 @@
 #include <sys/types.h>
 
 #ifndef SKETCHOS_VERSION
-#define SKETCHOS_VERSION "0.1"
+#define SKETCHOS_VERSION "1.1"
 #endif
 #define SKETCHOS_NAME "SketchOS"
 

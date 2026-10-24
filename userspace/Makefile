@@ -17,7 +17,7 @@
 CC      ?= sk-cc
 HOSTCC  ?= gcc
 BUILD   ?= ../build/userspace
-VERSION ?= 0.1
+VERSION ?= 1.1
 
 WARN    := -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 CFLAGS  ?= -O2

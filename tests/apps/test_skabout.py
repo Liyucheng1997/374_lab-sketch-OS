@@ -127,9 +127,9 @@ def test_render(d, args):
     check(st["release"] == u.release, "内核版本来自 uname(): %s" % st["release"])
     check(u.release in info["内核"] and info["内核"].startswith("Linux"), "“内核”一行: %s" % info["内核"])
     check(st["hostname"] == u.nodename and info["主机名"] == u.nodename, "主机名: %s" % info["主机名"])
-    check(st["os_name"] == "SketchOS" and info["系统版本"] == "0.1 (铅笔)", "系统名称和版本来自 os-release: %s %s" %
+    check(st["os_name"] == "SketchOS" and info["系统版本"] == "1.1 (铅笔)", "系统名称和版本来自 os-release: %s %s" %
           (st["os_name"], info["系统版本"]))
-    check(st["os_pretty"] == "手绘操作系统 0.1", "副标题是去掉系统名的 PRETTY_NAME: %s" % st["os_pretty"])
+    check(st["os_pretty"] == "手绘操作系统 1.1", "副标题是去掉系统名的 PRETTY_NAME: %s" % st["os_pretty"])
     model, count = cpu_model()
     if model:
         check(model in info["处理器"], "处理器型号来自 /proc/cpuinfo: %s" % info["处理器"])

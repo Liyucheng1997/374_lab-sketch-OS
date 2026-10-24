@@ -2,10 +2,10 @@
 # 几乎所有 Linux 发行版都有这个文件（Ubuntu、Debian、Fedora……），格式是 KEY="值"。
 # 程序（比如“关于本机”）读它来显示系统名称和版本，而不是去猜。
 NAME="SketchOS"
-PRETTY_NAME="SketchOS 手绘操作系统 0.1"
+PRETTY_NAME="SketchOS 手绘操作系统 1.1"
 ID=sketchos
-VERSION="0.1 (铅笔)"
-VERSION_ID="0.1"
+VERSION="1.1 (铅笔)"
+VERSION_ID="1.1"
 VERSION_CODENAME=pencil
 ANSI_COLOR="1;36"
 LOGO=sketchos

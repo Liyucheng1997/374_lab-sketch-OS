@@ -406,14 +406,14 @@ def sc_main(ctx):
         out = vm.serial_output()
 
         # ---- 里程碑和横幅 ----
-        R.check(re.search(r"sinit: SketchOS 0\.1 starting", out), "里程碑 'sinit: SketchOS 0.1 starting'")
+        R.check(re.search(r"sinit: SketchOS 1\.1 starting", out), "里程碑 'sinit: SketchOS 1.1 starting'")
         R.check(out.find("sinit: SketchOS") < out.find("sinit: services started"), "starting 在 services started 之前")
-        R.check("手绘操作系统 0.1" in out, "横幅：手绘操作系统 0.1")
+        R.check("手绘操作系统 1.1" in out, "横幅：手绘操作系统 1.1")
         R.check("|____/|_|\\_\\___|" in out, "横幅：SketchOS 字样")
         R.check(re.search(r"内核\s+Linux 6\.12\.\S+ \(i686\)", out), "横幅：内核版本和架构")
         R.check(re.search(r"时间\s+20\d\d-\d\d-\d\d \d\d:\d\d:\d\d（时区 CST-8）", out), "横幅：时间和时区")
         R.check(re.search(r"内核用了 \d+\.\d\d 秒", out), "横幅：开机用时")
-        R.check(out.count("sinit: SketchOS 0.1 starting") == 1, "里程碑只出现一次（没有重复输出）")
+        R.check(out.count("sinit: SketchOS 1.1 starting") == 1, "里程碑只出现一次（没有重复输出）")
         R.check("[sinit]" not in out, "sinit 的普通日志没有刷到串口上")
 
         # ---- 刚开机时的服务状态（late 还在 delay 中）----
