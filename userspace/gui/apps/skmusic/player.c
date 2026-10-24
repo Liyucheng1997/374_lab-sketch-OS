@@ -114,6 +114,28 @@ static void card_name(char *buf, size_t n)
     free(text);
 }
 
+/*
+ * 声卡上还有一个“混音器”：把 PCM（我们写的采样）、CD、麦克风等几路声音按各自的音量混在一起，
+ * 再乘上总音量送到喇叭。ALSA 驱动开机时把这些音量全设成 0——Linux 的惯例是“先静音，
+ * 由用户态程序（alsactl、amixer）恢复上次的音量”，免得一开机喇叭就爆响。
+ * SketchOS 没有那些程序，所以每次打开声卡时把总音量和 PCM 音量调到最大（0 dB，不放大也不衰减），
+ * 真正的“音量”由播放器自己缩放采样来控制（player_set_volume）。
+ * OSS 混音器的音量值：低字节是左声道、第二个字节是右声道，各 0..100。
+ */
+static void mixer_full(void)
+{
+    int fd = open("/dev/mixer", O_RDWR | O_CLOEXEC);
+    if (fd < 0)
+        return;                              /* 没有混音器（或者不是 OSS 声卡）：不影响放音 */
+    int v = 100 | 100 << 8;
+    if (ioctl(fd, MIXER_WRITE(SOUND_MIXER_VOLUME), &v) != 0)
+        sk_log("skmusic: 设置总音量失败：%s", sk_strerror(errno));
+    v = 100 | 100 << 8;
+    if (ioctl(fd, MIXER_WRITE(SOUND_MIXER_PCM), &v) != 0)
+        sk_log("skmusic: 设置 PCM 音量失败：%s", sk_strerror(errno));
+    close(fd);
+}
+
 static void out_open(player *p)
 {
     p->out = OUT_NONE;
@@ -159,6 +181,7 @@ static void out_open(player *p)
         close(fd);
         return;
     }
+    mixer_full();
     char name[96];
     card_name(name, sizeof name);
     p->out = OUT_DSP;

@@ -16,7 +16,7 @@
  *     --lib 目录          v86 文件所在目录，默认 web/lib
  *     --script 文件       测试脚本（见下）；不给脚本时进入交互模式：键盘输入直接发到串口，Ctrl+] 退出
  *     --log 文件          串口日志保存路径
- *     --audio-wav 文件    把 SB16 声卡放出的声音录成 WAV 文件（停机时写出）
+ *     --audio-wav 文件    把 SB16 声卡放出的声音（经过声卡混音器的音量调节）录成 WAV 文件（停机时写出）
  *     --quiet             不把串口输出打印到终端（默认会实时打印）
  *     --timeout 秒        脚本跑完后再保持运行的秒数（交互模式下表示最长运行时间）
  *     --screen WxH        文本模式下鼠标坐标换算用的屏幕大小，默认 1024x768（图形模式自动用真实分辨率）
@@ -472,12 +472,26 @@ export class V86VM {
     _attachFakeDac(emulator) {
         const bus = emulator.bus;
         const dac = { rate: 22050, enabled: false, queued: 0, last: Date.now() };
+        // 声卡混音器：浏览器里 v86 会按 SB16 的总音量、DAC 音量寄存器（dB）调节输出，
+        // 录音时也照样乘上，这样“驱动把混音器设成静音”之类的问题在测试里也听得出来（录出来是静音）。
+        // [来源][声道] 的 dB 值；来源 0 = 总音量，2 = DAC（PCM）；声道 0 左 1 右 2 两边（v86 src/const.js）
+        const db = { 0: [0, 0], 2: [0, 0] };
+        bus.register("mixer-volume", (d) => {
+            const [src, ch, value] = d;
+            if (!(src in db)) return;
+            if (ch === 0 || ch === 2) db[src][0] = value;
+            if (ch === 1 || ch === 2) db[src][1] = value;
+        });
+        const gain = (c) => Math.pow(10, (db[0][c] + db[2][c]) / 20);
         bus.register("dac-tell-sampling-rate", (r) => { dac.rate = r; });
         bus.register("dac-enable", () => { dac.enabled = true; dac.last = Date.now(); });
         bus.register("dac-disable", () => { dac.enabled = false; });
         bus.register("dac-send-data", (data) => {
             dac.queued += data[0].length;
-            if (this.audioWav) this._audio.push([data[0], data[1], dac.rate]);
+            if (this.audioWav) {
+                const gl = gain(0), gr = gain(1);
+                this._audio.push([data[0].map((v) => v * gl), data[1].map((v) => v * gr), dac.rate]);
+            }
         });
         if (this._dacTimer) clearInterval(this._dacTimer);
         this._dacTimer = setInterval(() => {
