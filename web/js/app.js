@@ -444,6 +444,14 @@
         ui.buildInfo.textContent = parts.join(" · ");
     }
 
+    /** 系统镜像的网址带上 manifest.json 里的 sha256：GitHub Pages 允许浏览器把文件缓存 10 分钟，
+     *  刚部署完新版本时，不带版本号的网址可能还会拿到旧的镜像（开出来的还是旧系统）。
+     *  内容变了网址就变了，浏览器只能重新下载；内容没变，网址也不变，缓存照样有效。 */
+    function versioned(url, name) {
+        const f = S.manifest && S.manifest.files && S.manifest.files[name];
+        return f && f.sha256 ? `${url}?v=${String(f.sha256).slice(0, 12)}` : url;
+    }
+
     /* ---------- 开机 ---------- */
     async function startMachine() {
         if (["checking", "loading", "booting", "running"].includes(S.phase)) return;
@@ -481,8 +489,8 @@
                 wasm_path: URLS.wasm,
                 bios: { url: URLS.bios },
                 vga_bios: { url: URLS.vgaBios },
-                bzimage: { url: URLS.bzimage },
-                initrd: { url: URLS.initrd },
+                bzimage: { url: versioned(URLS.bzimage, "bzImage") },
+                initrd: { url: versioned(URLS.initrd, "initramfs.cpio.gz") },
                 cmdline: (CMDLINE + " " + OPTS.append).trim(),
                 memory_size: OPTS.memoryMB * 1024 * 1024,
                 vga_memory_size: 16 * 1024 * 1024,
@@ -535,7 +543,7 @@
     }
 
     function onDownloadProgress(e) {
-        const url = String(e.file_name || "");
+        const url = String(e.file_name || "").replace(/\?.*$/, "");     // 去掉 versioned() 加的 ?v=
         const key = DOWNLOADS.find((d) => url === d.url || url.endsWith("/" + d.url) || url.endsWith(d.url))?.url || url;
         // 文件按顺序下载：轮到后面的文件时，前面的一定已经下完了
         const idx = DOWNLOADS.findIndex((d) => d.url === key);
