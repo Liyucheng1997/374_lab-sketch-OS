@@ -619,6 +619,18 @@ static void ic_music(ictx *ic)
     i_ellipse(ic, 29.5f, 29, 8, 6, SK_INK, SK_INK);
 }
 
+/* AI 助手：紫色的对话气泡（左下角拖一个小尾巴），里面一颗四角星，右上角再闪一颗黄色的小星 */
+static void ic_ai(ictx *ic)
+{
+    float tail[6] = { 12, 33, 21, 33, 9, 43 };
+    i_poly(ic, tail, 3, SK_INK, SK_PURPLE);
+    i_rrect(ic, 4, 8, 38, 27, 7, SK_INK, SK_PURPLE);
+    float star[16] = { 23, 11.5f, 25.5f, 19, 33, 21.5f, 25.5f, 24, 23, 31.5f, 20.5f, 24, 13, 21.5f, 20.5f, 19 };
+    i_poly(ic, star, 8, SK_INK, SK_PAPER);
+    float spark[16] = { 41, 2, 42, 5.5f, 45.5f, 6.5f, 42, 7.5f, 41, 11, 40, 7.5f, 36.5f, 6.5f, 40, 5.5f };
+    i_poly(ic, spark, 8, SK_INK, SK_YELLOW);
+}
+
 typedef void (*icon_fn)(ictx *);
 static const icon_fn icon_table[SK_ICON_COUNT] = {
     [SK_ICON_TERMINAL] = ic_terminal,     [SK_ICON_FOLDER] = ic_folder,
@@ -639,7 +651,7 @@ static const icon_fn icon_table[SK_ICON_COUNT] = {
     [SK_ICON_MEMORY] = ic_memory,         [SK_ICON_PROCESS] = ic_process,
     [SK_ICON_SKETCH_LOGO] = ic_logo,      [SK_ICON_BOOK] = ic_book,
     [SK_ICON_REFRESH] = ic_refresh,       [SK_ICON_SEARCH] = ic_search,
-    [SK_ICON_MUSIC] = ic_music,
+    [SK_ICON_MUSIC] = ic_music,           [SK_ICON_AI] = ic_ai,
 };
 
 void sk_draw_icon(sk_canvas *c, int icon, int x, int y, int size, uint32_t seed)
@@ -687,7 +699,7 @@ int sk_icon_from_name(const char *name)
         { "fill", SK_ICON_FILL }, { "kernel", SK_ICON_KERNEL }, { "chip", SK_ICON_CHIP },
         { "memory", SK_ICON_MEMORY }, { "process", SK_ICON_PROCESS }, { "logo", SK_ICON_SKETCH_LOGO },
         { "book", SK_ICON_BOOK }, { "refresh", SK_ICON_REFRESH }, { "search", SK_ICON_SEARCH },
-        { "music", SK_ICON_MUSIC },
+        { "music", SK_ICON_MUSIC }, { "ai", SK_ICON_AI },
         /* 常见的别名 */
         { "new_folder", SK_ICON_NEW_FOLDER }, { "sketch", SK_ICON_SKETCH_LOGO },
         { "sketchos", SK_ICON_SKETCH_LOGO }, { "document", SK_ICON_TEXT }, { "picture", SK_ICON_IMAGE },
@@ -696,6 +708,7 @@ int sk_icon_from_name(const char *name)
         { "rectangle", SK_ICON_RECT }, { "ellipse", SK_ICON_CIRCLE }, { "bucket", SK_ICON_FILL },
         { "files", SK_ICON_FOLDER }, { "help", SK_ICON_BOOK }, { "doc", SK_ICON_BOOK },
         { "find", SK_ICON_SEARCH }, { "audio", SK_ICON_MUSIC }, { "sound", SK_ICON_MUSIC },
+        { "assistant", SK_ICON_AI }, { "claude", SK_ICON_AI }, { "chat", SK_ICON_AI },
     };
     if (!name)
         return SK_ICON_PROGRAM;

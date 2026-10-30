@@ -1,0 +1,22 @@
+# AI 服务的端到端测试：真正的 v86 模拟器 + 第二个串口上的 AI 桥 + 假的 Claude（不联网、不要密钥）
+#   node tools/v86_harness.mjs --ai-mock --script tests/web/ai.txt
+# 链路：ai 命令 → skaid（Unix 套接字）→ /dev/ttyS1 → v86 的 COM2 → web/js/ai-bridge.js → 假 Claude
+#       假 Claude 要求运行 uname -sr → skaid 在虚拟机里执行 → 结果经串口交回 → 假 Claude 回答“模拟回答：Linux 6.12…”
+wait skaid: ready socket=/run/sketch/ai.sock bridge=/dev/ttyS1 120
+wait sketchd: ready 180
+sleep 3
+run svc
+run ai --status
+wait 状态：ready 30
+mark
+run ai 帮我看看内核版本
+wait 运行命令：uname -sr 60
+wait 模拟回答：Linux 6\.12 60
+# 图形界面：Ctrl+Alt+A 打开 AI 助手，输入问题、回车
+key ctrl-alt-a
+wait sketchd: window \d+ created app=skai 60
+sleep 6
+type hi
+key ret
+sleep 25
+shot ai-window.png

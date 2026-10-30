@@ -62,6 +62,8 @@ for f in "$UB/bin/"*; do
 done
 [ -f "$STAGE/sbin/sinit" ] && ln -sf /sbin/sinit "$STAGE/init" && ln -sf sinit "$STAGE/sbin/init"
 [ -f "$STAGE/bin/sksh" ] && ln -sf sksh "$STAGE/bin/sh"
+# 命令行 AI 客户端 ai 和 AI 服务是同一个程序（看 argv[0] 决定身份）
+[ -f "$STAGE/bin/skaid" ] && ln -sf skaid "$STAGE/bin/ai"
 if [ -f "$STAGE/bin/skbox" ] && [ -f "$UB/skbox.applets" ]; then
     while read -r a; do
         [ -n "$a" ] || continue

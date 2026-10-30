@@ -475,6 +475,61 @@ main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
 .input-line:focus-within > .sk-deco .ink { stroke: var(--blue); }
 .serial-panel .hint { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-soft); }
 
+/* ---------- AI 设置 ---------- */
+.ai-panel { margin: 24px 0 0; padding: 14px 18px 12px; }
+.ai-form {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 14px;
+    margin-top: 12px;
+}
+.ai-label { font-weight: 700; }
+.ai-control { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ai-control .input-line select {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 2px 8px;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font-family: var(--hand);
+    font-size: 15.5px;
+    color: var(--ink);
+}
+.ai-control .ai-auth { flex: 0 0 auto; }
+.ai-checks { flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 0; font-size: 15px; }
+.ai-checks input { accent-color: var(--purple); width: 16px; height: 16px; vertical-align: -2px; }
+.ai-status { margin: 10px 0 0; min-height: 1.4em; font-size: 15px; }
+.ai-status[data-state="ok"] { color: #3D8B45; }
+.ai-status[data-state="error"] { color: #C4453E; }
+.ai-status[data-state="busy"] { color: #8458C2; }
+.ai-activity {
+    margin: 6px 0 0;
+    padding-left: 1.4em;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    overflow-wrap: anywhere;
+}
+.ai-activity:empty { display: none; }
+.ai-activity li[data-state="error"] { color: #C4453E; }
+.ai-activity li[data-state="busy"] { color: #8458C2; }
+.ai-panel .hint { margin: 8px 0 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+/* 还没填密钥时，工具栏上的「AI 设置」按钮右上角点一个小红点 */
+#btn-ai { position: relative; }
+#btn-ai.needs-key::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--red);
+}
+
 /* ---------- 说明文字 ---------- */
 .notes { margin: 28px 0 0; padding: 18px 22px 16px; }
 .notes h2 { margin: 0 0 10px; font-size: 23px; line-height: 1.35; }
@@ -531,6 +586,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
     .notes h2 { font-size: 20px; }
     .serial-panel { padding: 12px 12px 10px; }
     .serial-log { font-size: 12.5px; }
+    .ai-panel { padding: 12px 12px 10px; }
+    .ai-form { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .ai-label:empty { display: none; }
+    .ai-label { margin-top: 6px; }
     .arch-svg .arch-title { font-size: 15.5px; }
     .arch-svg .arch-chip { font-size: 13px; }
     .arch-svg .arch-link { font-size: 12.5px; }

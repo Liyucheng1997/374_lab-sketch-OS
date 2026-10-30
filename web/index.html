@@ -27,6 +27,7 @@
       <button type="button" class="sk-btn" id="btn-shot" data-sketch="button" data-accent="var(--orange)" data-icon="camera"><span class="label">截图</span></button>
       <button type="button" class="sk-btn" id="btn-serial" data-sketch="button" data-accent="var(--purple)" data-icon="terminal" aria-pressed="false" aria-controls="serial-panel"><span class="label">串口控制台</span></button>
       <button type="button" class="sk-btn" id="btn-scale" data-sketch="button" data-accent="var(--teal)" data-icon="scale"><span class="label">缩放：适应</span></button>
+      <button type="button" class="sk-btn" id="btn-ai" data-sketch="button" data-accent="var(--purple)" data-icon="sparkle" aria-pressed="false" aria-controls="ai-panel"><span class="label">AI 设置</span></button>
       <button type="button" class="sk-btn touch-only" id="btn-osk" data-sketch="button" data-accent="var(--pink)" data-icon="keyboard"><span class="label">屏幕键盘</span></button>
     </div>
 
@@ -75,7 +76,7 @@
           <button type="button" class="sk-btn small fs-only" id="btn-exit-fs" data-sketch="button" data-accent="var(--red)" data-icon="exit"><span class="label">退出全屏</span></button>
         </div>
       </div>
-      <p class="caption" id="caption">一台用 WebAssembly 模拟出来的 32 位 x86 电脑：256 MB 内存 · Bochs VBE 显卡 · PS/2 键盘鼠标 · 16550 串口</p>
+      <p class="caption" id="caption">一台用 WebAssembly 模拟出来的 32 位 x86 电脑：256 MB 内存 · Bochs VBE 显卡 · PS/2 键盘鼠标 · 两个 16550 串口（第二个接着 AI 桥）</p>
       <textarea class="phone_keyboard" id="phone-keyboard" aria-label="屏幕键盘输入" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
     </div>
 
@@ -100,6 +101,70 @@
       </form>
       <p class="hint">这里打的字只送给串口 ttyS0，不会进入图形界面。串口上同样运行着一个 sksh。</p>
     </section>
+
+    <section class="card ai-panel" id="ai-panel" hidden aria-label="AI 设置" data-sketch="box" data-seed="ai-panel">
+      <div class="serial-head">
+        <h2>AI 设置 <small id="ai-summary">让 SketchOS 里的 AI 助手连上 Claude</small></h2>
+        <div class="serial-actions">
+          <button type="button" class="sk-btn small" id="ai-test" data-sketch="button" data-accent="var(--teal)"><span class="label">测试连接</span></button>
+          <button type="button" class="sk-btn small" id="ai-clear" data-sketch="button" data-accent="var(--red)"><span class="label">清除密钥</span></button>
+        </div>
+      </div>
+      <form class="ai-form" id="ai-form" autocomplete="off">
+        <label class="ai-label" for="ai-key">API 密钥</label>
+        <div class="ai-control">
+          <span class="input-line" data-sketch="underline" data-seed="ai-key-line">
+            <input type="password" id="ai-key" spellcheck="false" autocomplete="off" placeholder="sk-ant-……（在 console.anthropic.com 创建）">
+          </span>
+          <button type="button" class="sk-btn small" id="ai-show" data-sketch="button" data-accent="var(--yellow)" aria-pressed="false"><span class="label">显示</span></button>
+        </div>
+        <label class="ai-label" for="ai-model">模型</label>
+        <div class="ai-control">
+          <span class="input-line" data-sketch="underline" data-seed="ai-model-line">
+            <input type="text" id="ai-model" list="ai-models" spellcheck="false" placeholder="claude-opus-5-5">
+          </span>
+          <datalist id="ai-models">
+            <option value="claude-opus-5-5">Claude Opus 5.5（默认）</option>
+            <option value="claude-sonnet-5-5">Claude Sonnet 5.5（更快）</option>
+            <option value="claude-haiku-5-5">Claude Haiku 5.5（最快最省）</option>
+            <option value="claude-fable-5-1">Claude Fable 5.1（最强）</option>
+          </datalist>
+        </div>
+        <label class="ai-label" for="ai-effort">思考深度</label>
+        <div class="ai-control">
+          <span class="input-line" data-sketch="underline" data-seed="ai-effort-line">
+            <select id="ai-effort">
+              <option value="low">low：快，适合简单问题</option>
+              <option value="medium">medium：适中（Opus 5.5 的默认）</option>
+              <option value="high">high：更仔细</option>
+              <option value="xhigh">xhigh：很仔细（适合复杂任务）</option>
+              <option value="max">max：尽全力（最慢、最贵）</option>
+            </select>
+          </span>
+        </div>
+        <label class="ai-label" for="ai-base">API 地址</label>
+        <div class="ai-control">
+          <span class="input-line" data-sketch="underline" data-seed="ai-base-line">
+            <input type="url" id="ai-base" spellcheck="false" placeholder="https://api.anthropic.com">
+          </span>
+          <span class="input-line ai-auth" data-sketch="underline" data-seed="ai-auth-line" title="认证方式：官方 API 用 x-api-key；有的兼容网关要 Bearer">
+            <select id="ai-auth" aria-label="认证方式">
+              <option value="x-api-key">x-api-key</option>
+              <option value="bearer">Bearer</option>
+            </select>
+          </span>
+        </div>
+        <span class="ai-label" aria-hidden="true"></span>
+        <div class="ai-control ai-checks">
+          <label><input type="checkbox" id="ai-thinking"> 显示思考摘要（终端里 <code>ai -v</code> 可以看到）</label>
+          <label><input type="checkbox" id="ai-fallback"> 被安全策略拒答时，自动换模型重试（只对官方 API 地址生效）</label>
+        </div>
+      </form>
+      <p class="ai-status" id="ai-status" role="status" aria-live="polite"></p>
+      <ol class="ai-activity" id="ai-activity" aria-label="最近的 AI 请求"></ol>
+      <p class="hint">密钥只保存在这个浏览器里（localStorage），只发给上面的 API 地址；SketchOS 虚拟机里的程序永远看不到它。
+        在 SketchOS 里使用 AI：双击桌面上的「AI助手」、按 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd>，或者在终端里输入 <code>ai 你的问题</code>。</p>
+    </section>
   </section>
 
   <section class="card notes" data-sketch="box" data-seed="notes-what">
@@ -111,6 +176,17 @@
       <div id="arch-diagram" class="arch"></div>
       <figcaption>分层结构：每一层只和相邻的一层打交道，箭头上写着它们之间“说话”的方式。</figcaption>
     </figure>
+  </section>
+
+  <section class="card notes" data-sketch="box" data-seed="notes-ai">
+    <h2><span data-sketch="underline" data-seed="h-ai">AI 是怎么接进操作系统的</span></h2>
+    <p>AI 是 SketchOS 的一项<b>系统服务</b>：开机时 <code>sinit</code> 启动 AI 服务 <code>skaid</code>，它在 Unix 域套接字
+      <code>/run/sketch/ai.sock</code> 上等待“前台”——图形界面的<b>AI 助手</b>和终端里的 <code>ai</code> 命令。
+      你提一个要求，skaid 就把对话交给 Claude（默认 <code>claude-opus-5-5</code>）；模型想动手时会回一个“工具调用”，
+      skaid 替它<b>运行命令、读写文件、打开应用</b>，再把结果交回去，直到任务完成。</p>
+    <p>可是这台虚拟电脑没有网卡。于是我们给它插了第二个串口 <code>/dev/ttyS1</code>，另一头接在这个网页的 JavaScript 上：
+      skaid 把请求写进串口，网页加上你的 API 密钥发给 Claude，再把流式回应一个字节一个字节写回去。
+      网页只是一块“只会和 Claude 说话的网卡”——对话历史、调用哪个工具，全在虚拟机里决定；而密钥从不进入虚拟机。</p>
   </section>
 
   <section class="card notes" data-sketch="box" data-seed="notes-boot">
@@ -130,7 +206,7 @@
     <h2><span data-sketch="underline" data-seed="h-tips">使用小提示</span></h2>
     <ul class="tips">
       <li><b>点一下屏幕</b>，键盘输入才会发给 SketchOS；点屏幕外面，或者同时按下再松开 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>，就把键盘还给网页。</li>
-      <li><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> 打开终端。</li>
+      <li><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> 打开终端，<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> 打开 AI 助手（先在「AI 设置」里填好 API 密钥）。</li>
       <li><b>串口控制台</b>就是这台电脑的第一个串口 ttyS0，上面也跑着 sksh，适合敲命令、看启动日志；在 <code>sinit</code> 出问题、图形界面起不来时尤其有用。</li>
       <li><b>全屏</b>时，Chrome / Edge 会把 <kbd>Esc</kbd>、<kbd>Ctrl</kbd>+<kbd>W</kbd> 这些快捷键也交给 SketchOS；长按 <kbd>Esc</kbd> 退出全屏。</li>
       <li><b>截图</b>保存的是虚拟显卡里的原始画面（PNG）。</li>
@@ -148,6 +224,7 @@
 
 <script src="js/rough.js"></script>
 <script src="js/terminal.js"></script>
+<script src="js/ai-bridge.js"></script>
 <script src="js/diagram.js"></script>
 <script src="js/app.js"></script>
 </body>

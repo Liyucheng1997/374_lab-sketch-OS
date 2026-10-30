@@ -17,6 +17,10 @@
  *     --script 文件       测试脚本（见下）；不给脚本时进入交互模式：键盘输入直接发到串口，Ctrl+] 退出
  *     --log 文件          串口日志保存路径
  *     --audio-wav 文件    把 SB16 声卡放出的声音（经过声卡混音器的音量调节）录成 WAV 文件（停机时写出）
+ *     --ai-mock           第二个串口上的 AI 桥接一个“假 Claude”（不联网、不要密钥）：第一次请求让 AI 调用
+ *                         run_command 运行 uname -sr，拿到结果后回答“模拟回答：……”。测试 AI 服务的整条链路用
+ *     --ai-key-env 变量名  从环境变量读真的 API 密钥（例如 ANTHROPIC_API_KEY），AI 桥真的去调用 Claude
+ *     --ai-model 模型      配合 --ai-key-env，默认 claude-opus-5-5
  *     --quiet             不把串口输出打印到终端（默认会实时打印）
  *     --timeout 秒        脚本跑完后再保持运行的秒数（交互模式下表示最长运行时间）
  *     --screen WxH        文本模式下鼠标坐标换算用的屏幕大小，默认 1024x768（图形模式自动用真实分辨率）
@@ -61,12 +65,44 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DEFAULT_CMDLINE =
     "console=tty1 console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on loglevel=4 sketch.mode=1024x768";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// 网页版的 AI 桥（web/js/ai-bridge.js），这里和浏览器里用的是同一份代码
+const SketchAIBridge = createRequire(import.meta.url)("../web/js/ai-bridge.js");
+
+/* ---------- 假的 Claude（--ai-mock）：按请求内容回一段 SSE 流 ---------- */
+function mockClaude(log) {
+    const sse = (events) => events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+    const msg = (blocks, stop) => [
+        { type: "message_start", message: { model: "mock-claude", usage: { input_tokens: 900, output_tokens: 1 } } },
+        ...blocks.flatMap((b, i) => b.type === "text"
+            ? [{ type: "content_block_start", index: i, content_block: { type: "text", text: "" } },
+               { type: "content_block_delta", index: i, delta: { type: "text_delta", text: b.text } },
+               { type: "content_block_stop", index: i }]
+            : [{ type: "content_block_start", index: i, content_block: { type: "tool_use", id: b.id, name: b.name, input: {} } },
+               { type: "content_block_delta", index: i, delta: { type: "input_json_delta", partial_json: JSON.stringify(b.input) } },
+               { type: "content_block_stop", index: i }]),
+        { type: "message_delta", delta: { stop_reason: stop }, usage: { output_tokens: 30 } },
+        { type: "message_stop" },
+    ];
+    return async (url, init) => {
+        if (!/\/v1\/messages$/.test(url)) return new Response(JSON.stringify({ display_name: "Mock" }), { status: 200 });
+        const body = JSON.parse(init.body);
+        log(`[v86_harness] 假 Claude 收到请求：model=${body.model} 消息 ${body.messages.length} 条，工具 ${(body.tools || []).length} 个\n`);
+        const last = body.messages[body.messages.length - 1];
+        const result = Array.isArray(last.content) && last.content.find((c) => c.type === "tool_result");
+        const events = result
+            ? msg([{ type: "text", text: "模拟回答：" + String(result.content).replace(/^退出码 0\n/, "").trim() }], "end_turn")
+            : msg([{ type: "text", text: "我来看看。" },
+                   { type: "tool_use", id: "toolu_mock1", name: "run_command", input: { command: "uname -sr" } }], "tool_use");
+        return new Response(sse(events), { status: 200, headers: { "content-type": "text/event-stream" } });
+    };
+}
 
 /* ---------- 路径：允许在 Windows 的 node 里直接写 WSL 路径 ---------- */
 export function hostPath(p) {
@@ -379,6 +415,16 @@ export class V86VM {
         this._echoCol = 0;                       // 串口回显当前行已经输出了多少字符
         this._lastOutputAt = 0;                  // 最近一次收到串口输出的时间
         this.resets = 0;
+        // AI 桥：默认没有密钥（虚拟机里的 AI 服务会显示“没有 API 密钥”），--ai-mock / --ai-key-env 打开
+        this.aiConfig = { key: "" };
+        this.aiFetch = null;
+        if (opts.aiMock) {
+            this.aiConfig = { key: "mock-key", model: "mock-claude", baseUrl: "https://mock.invalid" };
+            this.aiFetch = mockClaude((t) => this._appendSerial(t));
+        } else if (opts.aiKeyEnv) {
+            this.aiConfig = { key: process.env[opts.aiKeyEnv] || "", model: opts.aiModel || "claude-opus-5-5" };
+            if (!this.aiConfig.key) throw new Error(`环境变量 ${opts.aiKeyEnv} 是空的`);
+        }
     }
 
     async start() {
@@ -426,12 +472,23 @@ export class V86VM {
             acpi: false,
             autostart: true,
             disable_speaker: true,
+            uart1: true,                     // 第二个串口：AI 桥（和网页版一样）
             // Node 里没有 window：v86 自己的键盘/鼠标适配器什么也不会做，输入全部由我们发到总线上
         });
         this.emulator = emulator;
         this._buttons = [false, false, false];
         this._mouse = null;
         emulator.add_listener("serial0-output-byte", (b) => this._onSerialByte(b));
+        const bridge = new SketchAIBridge({
+            send: (bytes) => emulator.serial_send_bytes(1, bytes),
+            config: () => this.aiConfig,
+            fetch: this.aiFetch || undefined,
+            onActivity: (ev) => {
+                if (ev.type === "error") this._appendSerial(`[v86_harness] AI 桥出错：${ev.message}\n`);
+            },
+        });
+        this.aiBridge = bridge;
+        emulator.add_listener("serial1-output-byte", (b) => bridge.feed(b));
         this._attachFakeDac(emulator);
         await new Promise((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error("v86 初始化超时（60 秒）")), 60000);
@@ -895,6 +952,9 @@ function parseArgs(argv) {
             case "--script": opts.script = need(i); i++; break;
             case "--log": opts.log = need(i); i++; break;
             case "--audio-wav": opts.audioWav = need(i); i++; break;
+            case "--ai-mock": opts.aiMock = true; break;
+            case "--ai-key-env": opts.aiKeyEnv = need(i); i++; break;
+            case "--ai-model": opts.aiModel = need(i); i++; break;
             case "--timeout": opts.timeout = Number(need(i)); i++; break;
             case "--quiet": opts.echo = false; break;
             case "--screen": {

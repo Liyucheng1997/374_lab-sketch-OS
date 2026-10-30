@@ -9,6 +9,8 @@
  *   - 键盘只在点了屏幕之后才交给虚拟机（否则网页上的输入框、快捷键都没法用）；
  *   - 客户机重启时“冷启动”一台新的模拟器（原因见 hookGuestReboot）。
  *
+ *   - 第二个串口（COM2）接 AI 桥（js/ai-bridge.js）：SketchOS 里的 AI 服务通过它连上 Claude。
+ *
  * 网址参数：?autoboot=0 不自动开机；?mem=128 内存大小(MB)；?append=sketch.nogui 追加内核参数
  */
 (function () {
@@ -58,6 +60,10 @@
         serialPanel: $("serial-panel"), serialLog: $("serial-log"), serialForm: $("serial-form"),
         serialInput: $("serial-input"), serialCtrlC: $("serial-ctrlc"), serialClear: $("serial-clear"),
         buildInfo: $("build-info"), logo: $("logo"), diagram: $("arch-diagram"),
+        aiBtn: $("btn-ai"), aiPanel: $("ai-panel"), aiSummary: $("ai-summary"), aiForm: $("ai-form"),
+        aiKey: $("ai-key"), aiShow: $("ai-show"), aiModel: $("ai-model"), aiEffort: $("ai-effort"),
+        aiBase: $("ai-base"), aiAuth: $("ai-auth"), aiThinking: $("ai-thinking"), aiFallback: $("ai-fallback"),
+        aiTest: $("ai-test"), aiClear: $("ai-clear"), aiStatus: $("ai-status"), aiActivity: $("ai-activity"),
     };
 
     /* ---------- 状态 ---------- */
@@ -82,6 +88,7 @@
         confirmUntil: 0,
         rebootHooked: false,
         libPromise: null,
+        aiOpen: false,
     };
     const term = new SerialTerminal(ui.serialLog);
     const decoder = { gen: -1, d: null };
@@ -484,6 +491,8 @@
                 autostart: true,
                 // 打开声音：v86 模拟一块 Sound Blaster 16，声卡放出的采样经 Web Audio 从浏览器播放（“音乐”应用用它）
                 disable_speaker: false,
+                // 第二个串口 COM2（I/O 端口 0x2F8、IRQ 3，Linux 里是 /dev/ttyS1）：AI 桥
+                uart1: true,
             });
         } catch (e) {
             showError("模拟器创建失败", "new V86() 抛出了异常。", { detail: String(e && e.message || e) });
@@ -506,6 +515,10 @@
         emu.add_listener("emulator-loaded", () => { if (!orphan()) onLoaded(emu, gen); });
         emu.add_listener("emulator-started", () => { if (!orphan()) onStarted(); });
         emu.add_listener("serial0-output-byte", mine(onSerialByte));
+        aiBridge.reset();
+        ai.stats.guest = false;
+        updateAiSummary();
+        emu.add_listener("serial1-output-byte", mine((b) => aiBridge.feed(b)));
         emu.add_listener("screen-set-size", mine(onScreenSize));
         emu.add_listener("vmware-absolute-mouse", mine((on) => {
             S.mouseMode = on ? "绝对坐标（VMware 后门）" : "PS/2 相对移动";
@@ -719,6 +732,175 @@
             Sketch.decorate(ui.serialPanel);
             ui.serialLog.scrollTop = ui.serialLog.scrollHeight;
         }
+    }
+
+    /* ---------- AI 桥（第二个串口 ↔ Claude API，见 js/ai-bridge.js） ---------- */
+    // 设置存在 localStorage 里（只在这个浏览器），密钥不会进入虚拟机
+    const ai = {
+        cfg: Object.assign(SketchAIBridge.DEFAULTS, loadAiConfig()),
+        stats: { requests: 0, in: 0, out: 0, guest: false },
+        rows: new Map(),            // 请求编号 → 活动列表里的那一行
+    };
+    const aiBridge = new SketchAIBridge({
+        send: (bytes) => {
+            if (S.emu && typeof S.emu.serial_send_bytes === "function") S.emu.serial_send_bytes(1, bytes);
+        },
+        config: () => ai.cfg,
+        onActivity: onAiActivity,
+    });
+
+    function loadAiConfig() {
+        try {
+            const j = JSON.parse(store("ai") || "{}");
+            return j && typeof j === "object" ? j : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveAiConfig() {
+        store("ai", JSON.stringify(ai.cfg));
+        aiBridge.configChanged();          // 告诉虚拟机里的 skaid：有没有密钥、用哪个模型
+        updateAiSummary();
+    }
+
+    function setAiStatus(text, state) {
+        ui.aiStatus.textContent = text;
+        ui.aiStatus.setAttribute("data-state", state || "");
+    }
+
+    function updateAiSummary() {
+        const st = ai.stats;
+        const parts = [ai.cfg.key ? `模型 ${ai.cfg.model}` : "还没有填 API 密钥"];
+        if (st.guest) parts.push("SketchOS 的 AI 服务已连上");
+        if (st.requests) parts.push(`本次开机 ${st.requests} 次请求，输入 ${st.in.toLocaleString()} / 输出 ${st.out.toLocaleString()} token`);
+        ui.aiSummary.textContent = parts.join(" · ");
+        ui.aiBtn.classList.toggle("needs-key", !ai.cfg.key);
+        ui.aiBtn.title = ai.cfg.key ? "AI 设置（已填好密钥）" : "AI 设置：填入 Anthropic API 密钥后，SketchOS 里的 AI 助手就能用了";
+    }
+
+    function fillAiForm() {
+        const c = ai.cfg;
+        ui.aiKey.value = c.key || "";
+        ui.aiModel.value = c.model || "";
+        ui.aiEffort.value = c.effort || "medium";
+        ui.aiBase.value = c.baseUrl || "";
+        ui.aiAuth.value = c.auth || "x-api-key";
+        ui.aiThinking.checked = !!c.thinkingSummary;
+        ui.aiFallback.checked = !!c.fallback;
+    }
+
+    function readAiForm() {
+        const d = SketchAIBridge.DEFAULTS;
+        ai.cfg = Object.assign({}, ai.cfg, {
+            key: ui.aiKey.value.trim(),
+            model: ui.aiModel.value.trim().replace(/\s+/g, "") || d.model,
+            effort: ui.aiEffort.value || d.effort,
+            baseUrl: ui.aiBase.value.trim().replace(/\/+$/, "") || d.baseUrl,
+            auth: ui.aiAuth.value === "bearer" ? "bearer" : "x-api-key",
+            thinkingSummary: ui.aiThinking.checked,
+            fallback: ui.aiFallback.checked,
+        });
+        saveAiConfig();
+    }
+
+    const timeOf = () => new Date().toTimeString().slice(0, 8);
+
+    function aiRow(id, text, state) {
+        let li = ai.rows.get(id);
+        if (!li) {
+            li = h("li", null);
+            ai.rows.set(id, li);
+            ui.aiActivity.insertBefore(li, ui.aiActivity.firstChild);
+            // 只留最近 8 条
+            while (ui.aiActivity.children.length > 8) {
+                const last = ui.aiActivity.lastChild;
+                for (const [k, v] of ai.rows) if (v === last) ai.rows.delete(k);
+                last.remove();
+            }
+        }
+        li.textContent = text;
+        li.setAttribute("data-state", state || "");
+    }
+
+    function onAiActivity(ev) {
+        const st = ai.stats;
+        if (ev.type === "hello") {
+            st.guest = true;
+        } else if (ev.type === "request") {
+            st.requests++;
+            aiRow(ev.id, `${timeOf()} #${ev.id} → ${ev.model}：对话里 ${ev.messages} 条消息，请求 ${fmtBytes(ev.bytes)}，等待回应……`, "busy");
+        } else if (ev.type === "done") {
+            st.in += ev.usage.in;
+            st.out += ev.usage.out;
+            const cached = ev.cached ? `（其中缓存命中 ${ev.cached.toLocaleString()}）` : "";
+            const why = { end_turn: "回答完毕", tool_use: "要调用工具", max_tokens: "达到长度上限", refusal: "拒绝回答" }[ev.stop] || ev.stop;
+            aiRow(ev.id, `${timeOf()} #${ev.id} ← ${ev.model}：${why} · 输入 ${ev.usage.in.toLocaleString()}${cached} / ` +
+                `输出 ${ev.usage.out.toLocaleString()} token · ${(ev.ms / 1000).toFixed(1)} 秒`, "");
+        } else if (ev.type === "error") {
+            aiRow(ev.id, `${timeOf()} #${ev.id} ✗ ${ev.message}`, "error");
+            if (!S.aiOpen && ev.status === 401) toggleAi(true);
+        } else if (ev.type === "cancel") {
+            aiRow(ev.id, `${timeOf()} #${ev.id} 已取消`, "");
+        }
+        updateAiSummary();
+    }
+
+    function toggleAi(open) {
+        S.aiOpen = open === undefined ? !S.aiOpen : open;
+        ui.aiPanel.hidden = !S.aiOpen;
+        ui.aiBtn.setAttribute("aria-pressed", String(S.aiOpen));
+        store("aiPanel", S.aiOpen ? "1" : "0");
+        if (S.aiOpen) {
+            fillAiForm();
+            Sketch.decorate(ui.aiPanel);
+            if (!ai.cfg.key) ui.aiKey.focus({ preventScroll: true });
+        }
+    }
+
+    async function testAi() {
+        readAiForm();
+        setAiStatus("正在测试连接……", "busy");
+        ui.aiTest.disabled = true;
+        try {
+            const r = await aiBridge.test();
+            setAiStatus(r.message, r.ok ? "ok" : "error");
+        } finally {
+            ui.aiTest.disabled = false;
+        }
+    }
+
+    function wireAi() {
+        fillAiForm();
+        updateAiSummary();
+        ui.aiBtn.addEventListener("click", () => toggleAi());
+        ui.aiForm.addEventListener("submit", (e) => e.preventDefault());
+        // 改了就保存（change 在离开输入框、选好下拉项时触发）
+        ui.aiForm.addEventListener("change", () => {
+            readAiForm();
+            setAiStatus(ai.cfg.key ? "已保存。SketchOS 里的 AI 助手马上就能用新设置。" : "已保存（还没有填 API 密钥）。", "ok");
+        });
+        ui.aiKey.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                testAi();
+            }
+        });
+        ui.aiShow.addEventListener("click", () => {
+            const show = ui.aiKey.type === "password";
+            ui.aiKey.type = show ? "text" : "password";
+            ui.aiShow.querySelector(".label").textContent = show ? "隐藏" : "显示";
+            ui.aiShow.setAttribute("aria-pressed", String(show));
+        });
+        ui.aiTest.addEventListener("click", testAi);
+        ui.aiClear.addEventListener("click", () => {
+            ui.aiKey.value = "";
+            readAiForm();
+            setAiStatus("密钥已从这个浏览器里删除。", "ok");
+        });
+        // 输入框获得焦点时，键盘还给网页
+        ui.aiPanel.addEventListener("focusin", release);
+        if (store("aiPanel") === "1") toggleAi(true);
     }
 
     /* ---------- 屏幕尺寸与缩放 ---------- */
@@ -1142,6 +1324,7 @@
             document.fonts.ready.then(() => document.querySelectorAll("[data-sketch]").forEach((n) => Sketch.redraw(n)));
         }
         wire();
+        wireAi();
         setScaleMode(store("scale") === "1x" ? "1x" : "fit");
         if (store("serial") === "1") toggleSerial(true);
         updateKbdState();
@@ -1166,6 +1349,7 @@
         get generation() { return S.gen; },
         terminalText: () => term.text(),
         sendSerial: sendSerial,
+        aiBridge: aiBridge,
     };
 
     init();

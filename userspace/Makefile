@@ -12,6 +12,7 @@
 #   gui/libsketch/*.c   → libsketch.a  图形库（绘图、手绘图元、字体、控件、客户端）
 #   gui/sketchd/*.c     → sketchd    显示服务器 + 窗口管理器 + 桌面
 #   gui/apps/<名字>/*.c → <名字>     每个子目录是一个图形应用
+#   ai/*.c              → skaid      AI 服务（守护进程；/bin/ai 是指向它的命令行客户端）
 #   gui/tests/*.c       → 宿主机离线渲染测试（make host-tests）
 
 CC      ?= sk-cc
@@ -36,8 +37,9 @@ sksh_src      := $(wildcard shell/*.c)
 skbox_src     := $(wildcard skbox/*.c)
 libsketch_src := $(wildcard gui/libsketch/*.c)
 sketchd_src   := $(wildcard gui/sketchd/*.c)
+skaid_src     := $(wildcard ai/*.c)
 app_dirs      := $(patsubst gui/apps/%/,%,$(sort $(dir $(wildcard gui/apps/*/*.c))))
-headers       := $(wildcard common/*.h gui/include/sketch/*.h gui/libsketch/*.h gui/sketchd/*.h shell/*.h skbox/*.h init/*.h gui/apps/*/*.h)
+headers       := $(wildcard common/*.h gui/include/sketch/*.h gui/libsketch/*.h gui/sketchd/*.h shell/*.h skbox/*.h init/*.h gui/apps/*/*.h ai/*.h)
 
 obj = $(patsubst %.c,$(OBJ)/%.o,$(1))
 
@@ -45,9 +47,10 @@ PROGRAMS := $(if $(sinit_src),$(BIN)/sinit) \
             $(if $(sksh_src),$(BIN)/sksh) \
             $(if $(skbox_src),$(BIN)/skbox) \
             $(if $(sketchd_src),$(BIN)/sketchd) \
+            $(if $(skaid_src),$(BIN)/skaid) \
             $(foreach a,$(app_dirs),$(BIN)/$(a))
 
-.PHONY: all clean host-tests list-apps sinit sksh skbox sketchd libsketch $(app_dirs)
+.PHONY: all clean host-tests list-apps sinit sksh skbox sketchd skaid libsketch $(app_dirs)
 all: $(PROGRAMS) $(if $(skbox_src),$(BUILD)/skbox.applets)
 
 # 快捷目标：make sksh / make skbox / make skterm ……只编译一个程序
@@ -55,6 +58,7 @@ sinit:     $(BIN)/sinit
 sksh:      $(BIN)/sksh
 skbox:     $(BIN)/skbox $(BUILD)/skbox.applets
 sketchd:   $(BIN)/sketchd
+skaid:     $(BIN)/skaid
 libsketch: $(BUILD)/libsketch.a
 $(foreach a,$(app_dirs),$(eval $(a): $(BIN)/$(a)))
 
@@ -106,6 +110,11 @@ $(BIN)/skbox: $(call obj,$(skbox_src)) $(BUILD)/libcommon.a
 $(BIN)/sketchd: $(call obj,$(sketchd_src)) $(BUILD)/libsketch.a $(BUILD)/libcommon.a
 	@mkdir -p $(BIN)
 	$(CC) $(LDFLAGS) -o $@ $(call obj,$(sketchd_src)) $(BUILD)/libsketch.a $(BUILD)/libcommon.a $(LDLIBS)
+
+# skaid 也链接 libsketch：工具 open_app 要以客户端身份请显示服务器启动应用
+$(BIN)/skaid: $(call obj,$(skaid_src)) $(BUILD)/libsketch.a $(BUILD)/libcommon.a
+	@mkdir -p $(BIN)
+	$(CC) $(LDFLAGS) -o $@ $(call obj,$(skaid_src)) $(BUILD)/libsketch.a $(BUILD)/libcommon.a $(LDLIBS)
 
 define APP_RULE
 $(BIN)/$(1): $(call obj,$(wildcard gui/apps/$(1)/*.c)) $(BUILD)/libsketch.a $(BUILD)/libcommon.a

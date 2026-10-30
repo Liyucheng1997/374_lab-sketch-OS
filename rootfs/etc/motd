@@ -16,6 +16,8 @@
       在终端窗口里也可以直接输入 skpaint、skclock、skmon 来启动
    5. 不会用某个命令？       help（shell 内建命令）、skbox --help、
                              以及每个命令都支持的 --help，例如 ls --help
+   6. 让 AI 帮你做事：       ai 帮我看看内存还剩多少   或者 Ctrl+Alt+A 打开 AI 助手
+                             （网页版专有：先在网页上的「AI 设置」里填好 API 密钥）
 
    读一读：cat ~/欢迎.txt     示例脚本：ls ~/示例     文档：ls /usr/share/doc/sketchos
 

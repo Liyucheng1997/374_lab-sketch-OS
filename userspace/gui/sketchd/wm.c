@@ -1289,6 +1289,10 @@ static int global_shortcut(uint32_t keycode, uint32_t mods)
         launch_app("terminal", NULL);
         return 1;
     }
+    if (ctrl && alt && keycode == KEY_A) {          /* AI 助手：这个系统的“第一公民”，随叫随到 */
+        launch_app("ai", NULL);
+        return 1;
+    }
     if (ctrl && !alt && keycode == KEY_ESC) {
         menu_toggle_start();
         return 1;
